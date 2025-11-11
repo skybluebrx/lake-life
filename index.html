@@ -1,150 +1,131 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lake Life</title>
-<style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    font-family: sans-serif;
-    background-color: #5c8237; /* grass green */
-  }
-
-  #pondCanvas {
-    display: block;
-    position: absolute;
-    top: 0;
-    left: 0;
-  }
-
-  #ui {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: rgba(255,255,255,0.8);
-    border-radius: 5px;
-    padding: 5px;
-    z-index: 10;
-  }
-
-  #menu {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 200px;
-    max-height: 400px;
-    background: rgba(255,255,255,0.9);
-    border-radius: 5px;
-    overflow: hidden;
-    transition: max-height 0.3s ease;
-    z-index: 10;
-  }
-
-  #menu.collapsed {
-    max-height: 40px;
-    overflow: hidden;
-  }
-
-  #menuHeader {
-    padding: 5px;
-    background: #ccc;
-    cursor: pointer;
-    font-weight: bold;
-  }
-
-  #menuContent {
-    padding: 5px;
-  }
-
-  .zoomBtn {
-    display: inline-block;
-    margin: 2px;
-    padding: 5px 8px;
-    cursor: pointer;
-    background: #ccc;
-    border-radius: 3px;
-    user-select: none;
-  }
-
-  #levelPopup {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(255,255,255,0.95);
-    padding: 20px;
-    border-radius: 10px;
-    text-align: center;
-    z-index: 20;
-    display: none;
-  }
-
-  #levelPopup button {
-    margin-top: 10px;
-    padding: 5px 10px;
-    cursor: pointer;
-  }
-
-  #panControls {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .panRow {
-    display: flex;
-    justify-content: center;
-  }
-
-  .panBtn {
-    margin: 2px;
-    padding: 5px 8px;
-    background: #ccc;
-    border-radius: 3px;
-    cursor: pointer;
-    user-select: none;
-  }
-
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lake Life</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #7bb661; /* grass */
+      font-family: sans-serif;
+    }
+    #menu {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.9);
+      border-radius: 8px;
+      padding: 5px;
+      transition: all 0.3s;
+      z-index: 10;
+    }
+    #menu.collapsed {
+      width: 40px;
+      height: 40px;
+      overflow: hidden;
+      padding: 0;
+      text-align: center;
+    }
+    #menu button {
+      display: block;
+      margin: 5px 0;
+    }
+    #canvas-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+    canvas {
+      display: block;
+    }
+    .popup {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255,255,255,0.95);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      z-index: 20;
+    }
+    .popup button {
+      margin-top: 10px;
+      padding: 5px 10px;
+    }
+    #pan-controls {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+    }
+    #pan-controls div {
+      margin: 2px;
+    }
+    #pan-controls button {
+      width: 30px;
+      height: 30px;
+    }
+    #zoom-controls {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+    }
+    #zoom-controls button {
+      width: 30px;
+      height: 30px;
+      margin: 2px 0;
+    }
+  </style>
 </head>
 <body>
-<canvas id="pondCanvas"></canvas>
-
-<div id="ui">
-  <span class="zoomBtn" id="zoomIn">+</span>
-  <span class="zoomBtn" id="zoomOut">-</span>
-</div>
-
-<div id="menu" class="collapsed">
-  <div id="menuHeader">MENU</div>
-  <div id="menuContent">
-    <div id="levelList"></div>
-    <div id="levelProgress">Progress: 0%</div>
+  <div id="menu">
+    <button id="menu-toggle">☰</button>
+    <div id="menu-content">
+      <div id="current-level">Level 1</div>
+      <div id="level-list"></div>
+      <div id="progress">0%</div>
+    </div>
   </div>
-</div>
 
-<div id="levelPopup">
-  <div id="popupText"></div>
-  <button id="popupButton">Start</button>
-</div>
-
-<div id="panControls">
-  <div class="panRow">
-    <div class="panBtn" id="panUp">↑</div>
+  <div id="canvas-container">
+    <canvas id="gameCanvas"></canvas>
   </div>
-  <div class="panRow">
-    <div class="panBtn" id="panLeft">←</div>
-    <div class="panBtn" id="panDown">↓</div>
-    <div class="panBtn" id="panRight">→</div>
-  </div>
-</div>
 
-<script src="script.js"></script>
+  <div id="welcome-popup" class="popup">
+    <h2>WELCOME TO LAKE LIFE</h2>
+    <p>Click Start to begin cleaning the pond!</p>
+    <button id="start-btn">Start</button>
+  </div>
+
+  <div id="level-complete-popup" class="popup" style="display:none;">
+    <h2>LEVEL COMPLETE</h2>
+    <button id="next-level-btn">Next Level</button>
+  </div>
+
+  <div id="zoom-controls">
+    <button id="zoom-in">+</button>
+    <button id="zoom-out">−</button>
+  </div>
+
+  <div id="pan-controls">
+    <div>
+      <button id="pan-up">↑</button>
+    </div>
+    <div>
+      <button id="pan-left">←</button>
+      <button id="pan-down">↓</button>
+      <button id="pan-right">→</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
