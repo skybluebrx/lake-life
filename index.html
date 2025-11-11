@@ -56,35 +56,3 @@
       padding:10px;
       background:#333;
       font-weight:bold;
-    }
-    #panelContent { padding:10px; display:block; }
-    #sidePanel.collapsed #panelContent { display:none; }
-    #sidePanel ul { list-style:none; padding-left:0; }
-    #sidePanel ul li { cursor:pointer; padding:3px 0; }
-    #sidePanel ul li:hover { text-decoration:underline; }
-  </style>
-</head>
-<body>
-  <canvas id="pond"></canvas>
-  <button id="muteBtn">Mute</button>
-
-  <!-- Level Complete Popup -->
-  <div id="levelPopup">
-    <div>
-      <h1>LEVEL COMPLETE</h1>
-      <button id="nextLevelBtn">Next Level</button>
-      <button id="closeBtn">X</button>
-    </div>
-  </div>
-
-  <!-- Side Panel -->
-  <div id="sidePanel">
-    <div id="panelHeader">Level 1 ▸</div>
-    <div id="panelContent">
-      <p>Percent Clean: <span id="percentComplete">0%</span></p>
-      <p>Unlocked Ponds:</p>
-      <ul id="pondList">
-        <li data-level="1">Level 1</li>
-      </ul>
-    </div>
-  </div>
