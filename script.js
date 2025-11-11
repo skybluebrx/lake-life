@@ -3,14 +3,16 @@ const ctx = canvas.getContext('2d');
 
 let mute = false;
 let scale = 1;
+let currentLevel = 1;
 let levelPopupShown = false;
 let firstLoad = true;
-let currentLevel = 1;
 const unlockedLevels = [1];
 const pondStates = {};
-let pond = {}, ripples=[], fish=[];
+let ripples = [];
+let fish = [];
+let pond = {};
 
-// Pond shapes per level (set, irregular shapes)
+// Pond shapes per level (fixed shapes)
 const pondShapes = {
   1: [{x:0,y:-100},{x:150,y:0},{x:0,y:100},{x:-150,y:0}],
   2: [{x:-50,y:-120},{x:140,y:-60},{x:100,y:80},{x:-140,y:60}],
@@ -18,7 +20,7 @@ const pondShapes = {
   4: [{x:-90,y:-160},{x:170,y:-80},{x:150,y:130},{x:-170,y:120}]
 };
 
-// UI Elements
+// UI elements
 const levelPopup = document.getElementById('levelPopup');
 const nextLevelBtn = document.getElementById('nextLevelBtn');
 const closeBtn = document.getElementById('closeBtn');
@@ -29,16 +31,18 @@ const panelHeader = document.getElementById('panelHeader');
 const pondListEl = document.getElementById('pondList');
 const percentCompleteEl = document.getElementById('percentComplete');
 
-// Panel toggle
-panelHeader.addEventListener('click', ()=>sidePanel.classList.toggle('collapsed'));
-
-// Mute button
-document.getElementById('muteBtn').addEventListener('click',()=>{
-  mute=!mute;
-  document.getElementById('muteBtn').textContent = mute?'Unmute':'Mute';
+// Menu toggle
+panelHeader.addEventListener('click', ()=>{
+  sidePanel.classList.toggle('collapsed');
 });
 
-// Zoom buttons (small increments)
+// Mute
+document.getElementById('muteBtn').addEventListener('click', ()=>{
+  mute = !mute;
+  document.getElementById('muteBtn').textContent = mute ? 'Unmute' : 'Mute';
+});
+
+// Zoom
 document.getElementById('zoomIn').addEventListener('click', ()=>{ scale += 0.02; if(scale>3) scale=3; });
 document.getElementById('zoomOut').addEventListener('click', ()=>{ scale -= 0.02; if(scale<0.5) scale=0.5; });
 
@@ -52,31 +56,31 @@ function resizeCanvas(){
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// Pond interaction
+// Pond click
 canvas.addEventListener('pointerdown', e=>{
-  const x = (e.clientX - canvas.width/2)/scale + canvas.width/2;
-  const y = (e.clientY - canvas.height/2)/scale + canvas.height/2;
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left - pond.x)/scale + pond.x;
+  const y = (e.clientY - rect.top - pond.y)/scale + pond.y;
   if(!inPond(x,y)) return;
-  ripples.push({x,y,radius:0,maxRadius:60,alpha:0.3});
+  ripples.push({x, y, radius:0, maxRadius:60});
   if(!mute){
-    const audio=new AudioContext(); 
-    const o=audio.createOscillator(); 
-    const g=audio.createGain(); 
-    o.connect(g); g.connect(audio.destination); 
-    o.type='sine'; o.frequency.value=220; 
-    o.start(); 
-    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime+0.3); 
+    const audio = new AudioContext();
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.connect(g); g.connect(audio.destination);
+    o.type='sine'; o.frequency.value=220;
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime+0.3);
     o.stop(audio.currentTime+0.3);
   }
 });
 
-// Check if point is in pond
 function inPond(x,y){
   if(!pond.points) return false;
   ctx.beginPath();
   const pts = pond.points;
-  ctx.moveTo(pond.x+pts[0].x, pond.y+pts[0].y);
-  for(let i=1;i<pts.length;i++) ctx.lineTo(pond.x+pts[i].x, pond.y+pts[i].y);
+  ctx.moveTo(pond.x + pts[0].x, pond.y + pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pond.x + pts[i].x, pond.y + pts[i].y);
   ctx.closePath();
   return ctx.isPointInPath(x,y);
 }
@@ -86,8 +90,8 @@ function clampFish(f){
   if(!pond.points) return;
   ctx.beginPath();
   const pts = pond.points;
-  ctx.moveTo(pond.x+pts[0].x, pond.y+pts[0].y);
-  for(let i=1;i<pts.length;i++) ctx.lineTo(pond.x+pts[i].x, pond.y+pts[i].y);
+  ctx.moveTo(pond.x + pts[0].x, pond.y + pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pond.x + pts[i].x, pond.y + pts[i].y);
   ctx.closePath();
   if(!ctx.isPointInPath(f.x,f.y)){
     f.vx*=-1; f.vy*=-1;
@@ -136,7 +140,7 @@ function drawGrass(){
   }
 }
 
-// Draw pond, ripples, blue water, fish
+// Draw pond, ripples, cleaned water, fish
 function drawPond(){
   if(!pond.points) return;
 
@@ -146,7 +150,7 @@ function drawPond(){
   ctx.moveTo(pond.x+pts[0].x, pond.y+pts[0].y);
   for(let i=1;i<pts.length;i++) ctx.lineTo(pond.x+pts[i].x, pond.y+pts[i].y);
   ctx.closePath();
-  ctx.fillStyle='#355e2f'; // murky green
+  ctx.fillStyle='#2b4d2b'; // murky green
   ctx.fill();
 
   // Ripples
@@ -159,7 +163,7 @@ function drawPond(){
     pond.cleanedPoints.push({x:r.x,y:r.y,radius:r.radius});
   });
 
-  // Solid blue water where cleaned
+  // Solid blue water
   pond.cleanedPoints.forEach(c=>{
     ctx.beginPath();
     ctx.arc(c.x,c.y,c.radius,0,Math.PI*2);
@@ -191,8 +195,8 @@ function checkLevelComplete(){
 
 // Animate
 function animate(){
-  ctx.save();
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.save();
   ctx.translate(canvas.width/2,canvas.height/2);
   ctx.scale(scale,scale);
   ctx.translate(-canvas.width/2,-canvas.height/2);
@@ -240,7 +244,7 @@ if(firstLoad){
   startLevel(1);
 }
 
-// Menu click for saved levels
+// Menu click
 pondListEl.addEventListener('click', e=>{
   if(e.target.tagName==='LI'){
     const lvl=parseInt(e.target.dataset.level);
