@@ -1,230 +1,234 @@
-const canvas = document.getElementById("pondCanvas");
-const ctx = canvas.getContext("2d");
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-let canvasWidth = window.innerWidth;
-let canvasHeight = window.innerHeight;
-canvas.width = canvasWidth;
-canvas.height = canvasHeight;
+let cw = canvas.width = window.innerWidth;
+let ch = canvas.height = window.innerHeight;
 
-let viewX = 0;
-let viewY = 0;
+let offsetX = 0;
+let offsetY = 0;
 let zoom = 1;
 
-let level = 1;
-const totalLevels = 10;
-let ponds = [];
-let fishList = [];
-const trees = [];
-const treeCount = 40;
+const pondLevels = [
+  {shape: 'ellipse', width: 300, height: 200}, // level 1
+  {shape: 'ellipse', width: 350, height: 220}, // level 2
+  {shape: 'ellipse', width: 400, height: 250},
+  {shape: 'ellipse', width: 450, height: 300},
+  {shape: 'ellipse', width: 500, height: 320},
+  {shape: 'ellipse', width: 550, height: 350},
+  {shape: 'ellipse', width: 600, height: 380},
+  {shape: 'ellipse', width: 650, height: 420},
+  {shape: 'ellipse', width: 700, height: 450},
+  {shape: 'abstract', width: 750, height: 500} // level 10 irregular
+];
 
-// Pond settings
-function generatePond(level) {
-  const baseRadius = 100 + level * 20;
-  const irregularity = level * 10;
-  const x = canvasWidth/2;
-  const y = canvasHeight/2;
-  return {
-    x, y,
-    radius: baseRadius,
-    irregularity: irregularity,
-    cleaned: [],
-    shape: generatePondShape(baseRadius, irregularity),
-  };
-}
+let currentLevel = 0;
+let pondX, pondY, pondWidth, pondHeight;
+let cleanedAreas = [];
+let ripples = [];
+let fish = [];
+let trees = [];
 
-function generatePondShape(radius, irregularity) {
-  const points = [];
-  const step = Math.PI*2 / 100;
-  for(let theta=0; theta<Math.PI*2; theta+=step){
-    const r = radius + Math.random()*irregularity - irregularity/2;
-    const px = r * Math.cos(theta);
-    const py = r * Math.sin(theta);
-    points.push({x:px, y:py});
-  }
-  return points;
-}
+const menu = document.getElementById('menu');
+const menuToggle = document.getElementById('menu-toggle');
+const menuContent = document.getElementById('menu-content');
+const currentLevelEl = document.getElementById('current-level');
+const levelListEl = document.getElementById('level-list');
+const progressEl = document.getElementById('progress');
+const welcomePopup = document.getElementById('welcome-popup');
+const startBtn = document.getElementById('start-btn');
+const levelCompletePopup = document.getElementById('level-complete-popup');
+const nextLevelBtn = document.getElementById('next-level-btn');
 
-// Generate ponds
-for(let i=1;i<=totalLevels;i++){
-  ponds.push(generatePond(i));
-}
-
-// Trees
-function generateTrees(){
-  for(let i=0;i<treeCount;i++){
-    const x = Math.random()*canvasWidth;
-    const y = Math.random()*canvasHeight;
-    const size = 20 + Math.random()*30;
-    trees.push({x,y,size});
-  }
-}
-
-// Fish
-function generateFish() {
-  fishList = [];
-  for(let i=0;i<15;i++){
-    const fish = {
-      x: ponds[level-1].x,
-      y: ponds[level-1].y,
-      angle: Math.random()*2*Math.PI,
-      speed: 0.5 + Math.random()*1,
-      size: 10 + Math.random()*5
-    };
-    fishList.push(fish);
-  }
-}
-
-// Zoom buttons
-document.getElementById("zoomIn").addEventListener("click",()=>{zoom+=0.05;});
-document.getElementById("zoomOut").addEventListener("click",()=>{zoom-=0.05;});
-
-// Pan buttons
-document.getElementById("panUp").addEventListener("click",()=>{viewY-=20;});
-document.getElementById("panDown").addEventListener("click",()=>{viewY+=20;});
-document.getElementById("panLeft").addEventListener("click",()=>{viewX-=20;});
-document.getElementById("panRight").addEventListener("click",()=>{viewX+=20;});
-
-// Menu collapse
-const menu = document.getElementById("menu");
-const menuHeader = document.getElementById("menuHeader");
-menuHeader.addEventListener("click",()=>{
-  menu.classList.toggle("collapsed");
+menuToggle.addEventListener('click', () => {
+  menu.classList.toggle('collapsed');
 });
 
-// Popup
-const levelPopup = document.getElementById("levelPopup");
-const popupText = document.getElementById("popupText");
-const popupButton = document.getElementById("popupButton");
+startBtn.addEventListener('click', () => {
+  welcomePopup.style.display = 'none';
+  initLevel(currentLevel);
+});
 
-function showPopup(text,btnText){
-  popupText.innerText=text;
-  popupButton.innerText=btnText;
-  levelPopup.style.display="block";
-}
+nextLevelBtn.addEventListener('click', () => {
+  levelCompletePopup.style.display = 'none';
+  currentLevel++;
+  if(currentLevel >= pondLevels.length) currentLevel = pondLevels.length -1;
+  initLevel(currentLevel);
+});
 
-popupButton.addEventListener("click",()=>{
-  levelPopup.style.display="none";
+function initLevel(level) {
+  pondWidth = pondLevels[level].width;
+  pondHeight = pondLevels[level].height;
+  pondX = cw/2;
+  pondY = ch/2;
+  cleanedAreas = [];
+  ripples = [];
+  fish = [];
+  trees = [];
+  generateTrees();
   generateFish();
+  currentLevelEl.textContent = 'Level '+(level+1);
+  updateLevelList();
   draw();
-});
+}
 
-showPopup("WELCOME TO LAKE LIFE\nClick Start to Clean Your First Pond","Start");
-
-// Pond cleaning
-canvas.addEventListener("click",(e)=>{
-  const rect = canvas.getBoundingClientRect();
-  const mx = (e.clientX-rect.left-viewX)/zoom;
-  const my = (e.clientY-rect.top-viewY)/zoom;
-
-  const pond = ponds[level-1];
-  const dx = mx-pond.x;
-  const dy = my-pond.y;
-  const dist = Math.sqrt(dx*dx+dy*dy);
-
-  if(dist<pond.radius){
-    // Clean area
-    pond.cleaned.push({x:mx, y:my, r:10});
-  }
-
-  checkLevelComplete();
-});
-
-function checkLevelComplete(){
-  const pond = ponds[level-1];
-  if(pond.cleaned.length>50){ // simplified, adjust later
-    showPopup("LEVEL "+level+" COMPLETE","Next Level");
-    level++;
-    if(level>totalLevels) level=totalLevels;
+function generateTrees(){
+  for(let i=0;i<30;i++){
+    let angle = Math.random()*2*Math.PI;
+    let radius = Math.random()*Math.min(cw,ch)/2;
+    let x = pondX + radius*Math.cos(angle);
+    let y = pondY + radius*Math.sin(angle);
+    if(!isInsidePond(x,y)){
+      trees.push({x,y,size:20+Math.random()*20});
+    }
   }
 }
 
-// Draw everything
-function draw(){
-  ctx.setTransform(zoom,0,0,zoom,viewX,viewY);
-  ctx.clearRect(0,0,canvasWidth/zoom,canvasHeight/zoom);
+function generateFish(){
+  for(let i=0;i<10;i++){
+    let angle = Math.random()*2*Math.PI;
+    let r = Math.random()*Math.min(pondWidth,pondHeight)/2;
+    let x = pondX + r*Math.cos(angle);
+    let y = pondY + r*Math.sin(angle);
+    fish.push({x,y,dx:Math.random()*2-1, dy:Math.random()*2-1, size:5+Math.random()*5});
+  }
+}
 
-  // Draw trees
+function updateLevelList(){
+  levelListEl.innerHTML = '';
+  for(let i=0;i<=currentLevel;i++){
+    const btn = document.createElement('button');
+    btn.textContent = 'Level '+(i+1);
+    btn.addEventListener('click', ()=> initLevel(i));
+    levelListEl.appendChild(btn);
+  }
+}
+
+function isInsidePond(x,y){
+  let dx = (x-pondX)/pondWidth;
+  let dy = (y-pondY)/pondHeight;
+  if(pondLevels[currentLevel].shape==='ellipse'){
+    return dx*dx + dy*dy <=0.25;
+  }
+  return dx*dx + dy*dy <=0.5; // irregular, simple approximation
+}
+
+canvas.addEventListener('click',(e)=>{
+  let rect = canvas.getBoundingClientRect();
+  let clickX = (e.clientX - rect.left - offsetX)/zoom;
+  let clickY = (e.clientY - rect.top - offsetY)/zoom;
+  if(isInsidePond(clickX,clickY)){
+    ripples.push({x:clickX,y:clickY,radius:5,maxRadius:50});
+  }
+});
+
+document.getElementById('zoom-in').addEventListener('click',()=>{zoom*=1.05;});
+document.getElementById('zoom-out').addEventListener('click',()=>{zoom/=1.05;});
+
+document.getElementById('pan-up').addEventListener('click',()=>{offsetY+=20;});
+document.getElementById('pan-down').addEventListener('click',()=>{offsetY-=20;});
+document.getElementById('pan-left').addEventListener('click',()=>{offsetX+=20;});
+document.getElementById('pan-right').addEventListener('click',()=>{offsetX-=20;});
+
+function draw(){
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cw,ch);
+  ctx.translate(offsetX,offsetY);
+  ctx.scale(zoom,zoom);
+
+  // grass background
+  ctx.fillStyle = '#7bb661';
+  ctx.fillRect(0,0,cw,ch);
+
+  // trees
   trees.forEach(t=>{
-    ctx.fillStyle="#3b5723";
+    ctx.fillStyle = '#2d7b2d';
     ctx.beginPath();
-    ctx.arc(t.x,t.y,t.size,0,2*Math.PI);
+    ctx.moveTo(t.x, t.y);
+    ctx.lineTo(t.x-t.size/2, t.y+t.size);
+    ctx.lineTo(t.x+t.size/2, t.y+t.size);
+    ctx.closePath();
     ctx.fill();
   });
 
-  // Draw pond
-  const pond = ponds[level-1];
-  ctx.save();
-  ctx.translate(pond.x,pond.y);
+  // pond base (murky green)
+  ctx.fillStyle = '#4a6b3b';
   ctx.beginPath();
-  pond.shape.forEach((p,i)=>{
-    if(i===0) ctx.moveTo(p.x,p.y);
-    else ctx.lineTo(p.x,p.y);
-  });
-  ctx.closePath();
-  ctx.clip();
-
-  // Murky water
-  ctx.fillStyle="rgba(0,80,40,0.7)";
+  if(pondLevels[currentLevel].shape==='ellipse'){
+    ctx.ellipse(pondX, pondY, pondWidth/2, pondHeight/2, 0,0,2*Math.PI);
+  } else {
+    ctx.ellipse(pondX, pondY, pondWidth/2, pondHeight/2, 0,0,2*Math.PI);
+  }
   ctx.fill();
 
-  // Blue cleaned spots
-  pond.cleaned.forEach(c=>{
+  // ripples & cleaned areas
+  ripples.forEach(r=>{
+    r.radius += 2;
     ctx.beginPath();
-    ctx.arc(c.x-pond.x,c.y-pond.y,c.r,0,2*Math.PI);
-    ctx.fillStyle="rgba(50,150,255,0.9)";
+    ctx.arc(r.x,r.y,r.radius,0,2*Math.PI);
+    ctx.clip();
+    ctx.fillStyle='#4dc3ff';
     ctx.fill();
+    if(r.radius<r.maxRadius){
+      cleanedAreas.push({x:r.x,y:r.y,radius:r.radius});
+    }
   });
+  ripples = ripples.filter(r=>r.radius<r.maxRadius);
 
-  ctx.restore();
-
-  // Draw fish
-  fishList.forEach(f=>{
-    // Only draw if inside cleaned area
-    let insideClean=false;
-    pond.cleaned.forEach(c=>{
-      const dx=f.x-c.x;
-      const dy=f.y-c.y;
-      if(Math.sqrt(dx*dx+dy*dy)<c.r){
-        insideClean=true;
-      }
+  // fish only in cleaned areas
+  fish.forEach(f=>{
+    let inClean = cleanedAreas.some(c=>{
+      let dx = f.x-c.x;
+      let dy = f.y-c.y;
+      return dx*dx+dy*dy<c.radius*c.radius;
     });
-    if(insideClean){
-      ctx.fillStyle="yellow";
+    if(inClean){
+      ctx.fillStyle='orange';
       ctx.beginPath();
       ctx.ellipse(f.x,f.y,f.size,f.size/2,0,0,2*Math.PI);
       ctx.fill();
-
-      // tail
-      ctx.beginPath();
-      ctx.moveTo(f.x-f.size,f.y);
-      ctx.lineTo(f.x-f.size-5,f.y-5);
-      ctx.lineTo(f.x-f.size-5,f.y+5);
-      ctx.closePath();
-      ctx.fill();
+      f.x += f.dx;
+      f.y += f.dy;
+      // keep in cleaned area
+      cleanedAreas.forEach(c=>{
+        let dx = f.x-c.x;
+        let dy = f.y-c.y;
+        let dist = Math.sqrt(dx*dx+dy*dy);
+        if(dist>c.radius-5){
+          f.dx*=-1;
+          f.dy*=-1;
+        }
+      });
     }
   });
 
+  // check progress
+  let sampleCount = 1000;
+  let cleanedCount = 0;
+  for(let i=0;i<sampleCount;i++){
+    let sx = pondX + (Math.random()-0.5)*pondWidth;
+    let sy = pondY + (Math.random()-0.5)*pondHeight;
+    if(isInsidePond(sx,sy)){
+      if(cleanedAreas.some(c=>{
+        let dx = sx-c.x;
+        let dy = sy-c.y;
+        return dx*dx+dy*dy<c.radius*c.radius;
+      })){
+        cleanedCount++;
+      }
+    }
+  }
+  let percent = Math.floor(cleanedCount/sampleCount*100);
+  progressEl.textContent = percent+'%';
+  if(percent>=100 && cleanedAreas.length>0){
+    levelCompletePopup.style.display='block';
+  }
+
+  ctx.restore();
   requestAnimationFrame(draw);
 }
 
-// Animate fish movement
-function animateFish(){
-  const pond = ponds[level-1];
-  fishList.forEach(f=>{
-    f.x+=Math.cos(f.angle)*f.speed;
-    f.y+=Math.sin(f.angle)*f.speed;
-
-    // Keep inside pond radius
-    const dx=f.x-pond.x;
-    const dy=f.y-pond.y;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist>pond.radius){
-      f.angle+=Math.PI;
-    }
-  });
-  setTimeout(animateFish,30);
-}
-
-generateTrees();
-animateFish();
-draw();
+window.addEventListener('resize',()=>{
+  cw = canvas.width = window.innerWidth;
+  ch = canvas.height = window.innerHeight;
+});
