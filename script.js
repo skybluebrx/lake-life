@@ -62,6 +62,7 @@ canvas.addEventListener('pointerdown', e=>{
   }
 });
 
+// Check if inside pond
 function inPond(x,y){
   const dx = x-pond.x;
   const dy = y-pond.y;
@@ -76,7 +77,7 @@ function animate(){
   ctx.fillStyle = '#228B22';
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // Pond brown base
+  // Pond base
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
@@ -84,7 +85,15 @@ function animate(){
   ctx.fill();
   ctx.clip();
 
-  // Draw water as continuous blue
+  // Draw continuous water using alpha blending
+  ctx.beginPath();
+  ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#66ccff';
+  ctx.globalAlpha = 1;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Overlay cleaned areas (small alpha to reveal blue gradually)
   for(let i=0;i<cols;i++){
     for(let j=0;j<rows;j++){
       if(cleanGrid[i][j] > 0){
@@ -92,16 +101,15 @@ function animate(){
         const cellY = pond.y - pond.ry + j*gridSize + gridSize/2;
         ctx.beginPath();
         ctx.ellipse(cellX, cellY, gridSize/2, gridSize/2, 0, 0, Math.PI*2);
-        ctx.fillStyle = `rgba(102,204,255,${cleanGrid[i][j]})`; // alpha based on cleaning
+        ctx.fillStyle = `rgba(102,204,255,${cleanGrid[i][j]})`;
         ctx.fill();
       }
     }
   }
 
-  // Update ripples and clean grid
+  // Ripples
   for(let k=0;k<ripples.length;k++){
     const r = ripples[k];
-    // Draw ripple as semi-transparent circle
     ctx.beginPath();
     ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);
     ctx.strokeStyle = `rgba(173,216,230,${r.alpha})`;
@@ -122,7 +130,7 @@ function animate(){
       }
     }
 
-    r.radius += 1.5; // smaller ripple growth
+    r.radius += 1.5; // smaller ripple
     r.alpha -= 0.01;
     if(r.alpha<=0) ripples.splice(k,1);
   }
@@ -134,24 +142,32 @@ function animate(){
     if(col>=0 && row>=0 && col<cols && row<rows && cleanGrid[col][row]>0.5){
       f.visible = true;
     }
+
     if(f.visible){
       f.x += f.vx;
       f.y += f.vy;
-      // bounce inside pond
+
       if(!inPond(f.x,f.y)){
         f.vx *= -1;
         f.vy *= -1;
       }
-      // draw fish as small triangle
+
+      // Draw fish: ellipse body + triangle tail
       ctx.save();
       ctx.translate(f.x,f.y);
       ctx.rotate(Math.atan2(f.vy,f.vx));
+      // body
       ctx.beginPath();
-      ctx.moveTo(0,-5);
-      ctx.lineTo(10,0);
-      ctx.lineTo(0,5);
+      ctx.ellipse(0,0,8,4,0,0,Math.PI*2);
+      ctx.fillStyle = 'yellow';
+      ctx.fill();
+      // tail
+      ctx.beginPath();
+      ctx.moveTo(-8,0);
+      ctx.lineTo(-12,3);
+      ctx.lineTo(-12,-3);
       ctx.closePath();
-      ctx.fillStyle='orange';
+      ctx.fillStyle='yellow';
       ctx.fill();
       ctx.restore();
     }
