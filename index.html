@@ -1,51 +1,104 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Lake Life</title>
 <style>
-html, body { margin:0; padding:0; overflow:hidden; font-family:sans-serif; }
-body { background:#228B22; }
-canvas { display:block; }
-#menu {
-  position:absolute; top:20px; right:20px; width:200px; background:rgba(255,255,255,0.9);
-  border-radius:8px; padding:10px; font-size:14px; z-index:10;
-}
-#menu h3{margin:5px 0;}
-#menu .level{cursor:pointer; margin:3px 0;}
-#menu .minimize{cursor:pointer; font-size:12px; color:blue; text-decoration:underline;}
-#popup {
-  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-  background:white; padding:20px; border-radius:10px; z-index:20; display:none; text-align:center;
-}
-#popup button {margin-top:10px;}
-#zoomControls {
-  position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
-  z-index:10; background:rgba(255,255,255,0.8); border-radius:8px; padding:5px;
-}
-#zoomControls button {margin:0 5px;}
+  :root {
+    --menu-w: 240px;
+    --menu-collapsed-w: 48px;
+    --ui-z: 999;
+  }
+  html,body { height:100%; margin:0; background:#1f7a2f; font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+  canvas { display:block; width:100%; height:100%; background:#1f7a2f; }
+  #app-ui { position:fixed; inset:0; pointer-events:none; }
+  /* Sidebar */
+  #sidebar {
+    position:fixed; right:12px; top:12px; width:var(--menu-w); background:rgba(255,255,255,0.92);
+    border-radius:10px; padding:12px; box-shadow:0 6px 20px rgba(0,0,0,0.25); pointer-events:auto; z-index:var(--ui-z);
+    transition:width .22s ease;
+  }
+  #sidebar.collapsed { width:var(--menu-collapsed-w); padding:8px; overflow:hidden; }
+  #sidebar h2 { margin:0 0 8px 0; font-size:16px; }
+  #sidebar .row { display:flex; justify-content:space-between; align-items:center; font-size:14px; margin:4px 0; }
+  #sidebar #levels { margin-top:8px; max-height:240px; overflow:auto; }
+  #sidebar .level-item { padding:6px 8px; background:#f0f0f0; border-radius:6px; margin-bottom:6px; cursor:pointer; }
+  #sidebar .level-item.locked { opacity:0.5; cursor:default; }
+  #sidebar .toggle { margin-top:8px; color:#1565c0; cursor:pointer; text-decoration:underline; font-size:13px; }
+  /* Popup */
+  .popup {
+    position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:calc(var(--ui-z) + 2);
+    background:white; padding:20px; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); display:none; pointer-events:auto;
+  }
+  .popup h3 { margin:0 0 8px 0; }
+  .popup button { padding:8px 12px; margin:6px; cursor:pointer; }
+  /* Pan/Zoom controls bottom-right */
+  #controls {
+    position:fixed; right:12px; bottom:12px; z-index:var(--ui-z); pointer-events:auto;
+    display:flex; gap:8px; align-items:center;
+  }
+  .pad { display:grid; grid-template-areas:"sp up sp" "lt ct rt" "sp dn sp"; gap:4px; }
+  .pad button { width:40px; height:40px; border-radius:6px; background:rgba(255,255,255,0.95); border:1px solid #ddd; cursor:pointer; }
+  #zoomButtons { display:flex; flex-direction:column; gap:8px; margin-left:8px; }
+  #zoomButtons button { width:36px; height:36px; border-radius:6px; }
+  /* make sure menus and controls clickable while canvas below */
+  #sidebar, .popup, #controls { pointer-events:auto; }
+  /* small responsive tweak */
+  @media (max-width:600px) {
+    #sidebar { right:8px; top:8px; width:200px; }
+    #controls { right:8px; bottom:8px; }
+  }
 </style>
 </head>
 <body>
-<canvas id="pond"></canvas>
+<canvas id="canvas"></canvas>
 
-<div id="menu">
-  <h3>MENU</h3>
-  <div>Level: <span id="levelDisplay">1</span></div>
-  <div>Completion: <span id="percentDisplay">0%</span></div>
-  <div id="unlockedLevels"></div>
-  <div class="minimize" onclick="toggleMenu()">Minimize</div>
-</div>
+<div id="app-ui">
+  <div id="sidebar" aria-hidden="false">
+    <h2>MENU</h2>
+    <div class="row"><div>Level</div><div id="levelLabel">1</div></div>
+    <div class="row"><div>Completion</div><div id="percentLabel">0%</div></div>
+    <div id="levels"></div>
+    <div class="toggle" id="toggleSidebar">Collapse</div>
+  </div>
 
-<div id="popup">
-  <div id="popupText">WELCOME TO LAKE LIFE</div>
-  <button id="startBtn">Start</button>
-</div>
+  <div id="controls">
+    <div class="pad" aria-hidden="false" style="grid-auto-flow:row;">
+      <div style="grid-area:up"></div>
+      <button id="panUp" style="grid-area:up">▲</button>
+      <div style="grid-area:sp"></div>
 
-<div id="zoomControls">
-  <button onclick="zoom(-0.05)">-</button>
-  <button onclick="zoom(0.05)">+</button>
+      <button id="panLeft" style="grid-area:lt">◀</button>
+      <div style="grid-area:ct"></div>
+      <button id="panRight" style="grid-area:rt">▶</button>
+
+      <div style="grid-area:sp"></div>
+      <button id="panDown" style="grid-area:dn">▼</button>
+      <div style="grid-area:sp"></div>
+    </div>
+
+    <div id="zoomButtons">
+      <button id="zoomIn">+</button>
+      <button id="zoomOut">−</button>
+    </div>
+  </div>
+
+  <div class="popup" id="welcomePopup">
+    <h3>WELCOME TO LAKE LIFE</h3>
+    <div>Clean the pond by tossing pebbles. Fish appear in clean water.</div>
+    <div style="margin-top:12px;">
+      <button id="startBtn">Start</button>
+    </div>
+  </div>
+
+  <div class="popup" id="completePopup">
+    <h3 id="completeTitle">LEVEL COMPLETE</h3>
+    <div style="margin-top:12px;">
+      <button id="nextLevelBtn">Next Level</button>
+      <button id="closeComplete">Close</button>
+    </div>
+  </div>
 </div>
 
 <script src="script.js"></script>
