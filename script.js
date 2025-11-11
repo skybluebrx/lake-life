@@ -12,7 +12,7 @@ let ripples = [];
 let fish = [];
 let pond = {};
 
-// Pond shapes per level (fixed shapes)
+// Pond shapes per level
 const pondShapes = {
   1: [{x:0,y:-100},{x:150,y:0},{x:0,y:100},{x:-150,y:0}],
   2: [{x:-50,y:-120},{x:140,y:-60},{x:100,y:80},{x:-140,y:60}],
@@ -126,7 +126,7 @@ function startLevel(level){
 function drawGrass(){
   ctx.fillStyle='#228B22';
   ctx.fillRect(0,0,canvas.width,canvas.height);
-  for(let i=0;i<100;i++){
+  for(let i=0;i<80;i++){
     const tx = Math.random()*canvas.width;
     const ty = Math.random()*canvas.height;
     const height = 20+Math.random()*30;
@@ -150,7 +150,7 @@ function drawPond(){
   ctx.moveTo(pond.x+pts[0].x, pond.y+pts[0].y);
   for(let i=1;i<pts.length;i++) ctx.lineTo(pond.x+pts[i].x, pond.y+pts[i].y);
   ctx.closePath();
-  ctx.fillStyle='#2b4d2b'; // murky green
+  ctx.fillStyle='#3b5323'; // murky algae green
   ctx.fill();
 
   // Ripples
