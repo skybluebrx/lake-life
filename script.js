@@ -7,10 +7,10 @@ document.getElementById('muteBtn').addEventListener('click', () => {
   document.getElementById('muteBtn').textContent = mute ? 'Unmute' : 'Mute';
 });
 
+// Canvas and viewport
 let scale = 1;
 let offsetX = 0;
 let offsetY = 0;
-
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 window.addEventListener('resize', ()=>{
@@ -28,25 +28,36 @@ const pond = {
   ry: 150
 };
 
-// Ripples array
-let ripples = [];
-
-// Fish/plants
-const fish = [];
-for(let i=0;i<10;i++){
-  // Random positions inside pond ellipse
-  let angle = Math.random()*2*Math.PI;
-  let rx = Math.random();
-  let x = pond.x + Math.cos(angle)*pond.rx*rx;
-  let y = pond.y + Math.sin(angle)*pond.ry*rx;
-  fish.push({x,y,visible:false});
+// Clean map grid
+const gridSize = 10;
+const cleanGrid = [];
+const cols = Math.ceil(pond.rx*2/gridSize);
+const rows = Math.ceil(pond.ry*2/gridSize);
+for(let i=0;i<cols;i++){
+  cleanGrid[i]=[];
+  for(let j=0;j<rows;j++){
+    cleanGrid[i][j]=false;
+  }
 }
+
+// Fish positions
+const fish = [];
+for(let i=0;i<15;i++){
+  const angle = Math.random()*2*Math.PI;
+  const radiusFactor = Math.random();
+  const x = pond.x + Math.cos(angle)*pond.rx*radiusFactor;
+  const y = pond.y + Math.sin(angle)*pond.ry*radiusFactor;
+  fish.push({x, y, visible:false});
+}
+
+// Ripples
+let ripples = [];
 
 // Pointer click
 canvas.addEventListener('pointerdown', e=>{
   const x = (e.clientX - offsetX)/scale;
   const y = (e.clientY - offsetY)/scale;
-  ripples.push({x, y, radius:0, maxRadius:100, alpha:1});
+  ripples.push({x, y, radius:0, maxRadius:80, alpha:1});
 
   if(!mute){
     const audio = new AudioContext();
@@ -88,7 +99,7 @@ function animate(){
   ctx.fillStyle='#228B22';
   ctx.fillRect(-offsetX/scale,-offsetY/scale,canvas.width/scale,canvas.height/scale);
 
-  // Pond base (brown)
+  // Pond base brown
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
@@ -96,40 +107,50 @@ function animate(){
   ctx.fill();
   ctx.clip();
 
-  // Draw ripples as cleaned blue water inside pond
-  ripples.forEach(r=>{
-    ctx.beginPath();
-    // Smooth ellipse ripple
-    ctx.ellipse(r.x, r.y, r.radius, r.radius*r.ry/r.rx, 0, 0, Math.PI*2);
-    ctx.fillStyle=`rgba(102,204,255,0.5)`;
-    ctx.fill();
+  // Draw cleaned areas from grid
+  for(let i=0;i<cols;i++){
+    for(let j=0;j<rows;j++){
+      if(cleanGrid[i][j]){
+        const cellX = pond.x - pond.rx + i*gridSize;
+        const cellY = pond.y - pond.ry + j*gridSize;
+        ctx.fillStyle='#66ccff';
+        ctx.fillRect(cellX, cellY, gridSize, gridSize);
+      }
+    }
+  }
 
+  // Draw ripples and expand cleaning
+  for(let k=0;k<ripples.length;k++){
+    let r = ripples[k];
     ctx.beginPath();
     ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);
     ctx.strokeStyle=`rgba(173,216,230,${r.alpha})`;
     ctx.lineWidth=2;
     ctx.stroke();
-  });
 
-  ctx.restore();
+    // Update cleaned cells
+    for(let i=0;i<cols;i++){
+      for(let j=0;j<rows;j++){
+        const cellX = pond.x - pond.rx + i*gridSize + gridSize/2;
+        const cellY = pond.y - pond.ry + j*gridSize + gridSize/2;
+        if(!cleanGrid[i][j] && Math.hypot(cellX-r.x, cellY-r.y)<=r.radius && inPond(cellX,cellY)){
+          cleanGrid[i][j]=true;
+        }
+      }
+    }
 
-  // Expand ripples
-  for(let i=0;i<ripples.length;i++){
-    let r = ripples[i];
     r.radius += 2;
-    r.alpha -= 0.005;
-    // Reveal fish inside ripple
-    fish.forEach(f=>{
-      const dx = f.x - r.x;
-      const dy = f.y - r.y;
-      const distance = Math.sqrt(dx*dx + dy*dy);
-      if(distance < r.radius) f.visible = true;
-    });
-    if(r.alpha<=0) ripples.splice(i,1);
+    r.alpha -= 0.01;
+    if(r.alpha<=0) ripples.splice(k,1);
   }
 
-  // Draw fish/plants
+  // Draw fish in cleaned areas
   fish.forEach(f=>{
+    const col = Math.floor((f.x - (pond.x - pond.rx))/gridSize);
+    const row = Math.floor((f.y - (pond.y - pond.ry))/gridSize);
+    if(col>=0 && row>=0 && col<cols && row<rows){
+      if(cleanGrid[col][row]) f.visible=true;
+    }
     if(f.visible){
       ctx.beginPath();
       ctx.arc(f.x,f.y,5,0,Math.PI*2);
@@ -138,6 +159,7 @@ function animate(){
     }
   });
 
+  ctx.restore();
   requestAnimationFrame(animate);
 }
 
