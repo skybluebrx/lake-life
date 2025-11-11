@@ -1,58 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ripple Pond</title>
-  <style>
-    body { margin:0; overflow:hidden; font-family:sans-serif; }
-    canvas { display:block; }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ripple Pond</title>
+<style>
+  body { margin:0; overflow:hidden; font-family:sans-serif; }
+  canvas { display:block; }
 
-    #muteBtn {
-      position:absolute;
-      top:10px;
-      left:10px;
-      z-index:10;
-      padding:8px 15px;
-      font-size:16px;
-      cursor:pointer;
-    }
+  #muteBtn {
+    position:absolute;
+    top:10px;
+    left:10px;
+    z-index:10;
+    padding:8px 15px;
+    font-size:16px;
+    cursor:pointer;
+  }
 
-    /* LEVEL COMPLETE popup */
-    #levelPopup {
-      display:none;
-      position:absolute;
-      top:0; left:0;
-      width:100%; height:100%;
-      background:rgba(0,0,0,0.5);
-      display:flex; justify-content:center; align-items:center;
-      z-index:50;
-    }
-    #levelPopup div {
-      background:white;
-      padding:30px;
-      border-radius:10px;
-      text-align:center;
-    }
-    #levelPopup button {
-      margin:10px;
-      padding:10px 20px;
-      cursor:pointer;
-    }
+  #levelPopup {
+    display:none;
+    position:absolute;
+    top:0; left:0;
+    width:100%; height:100%;
+    background:rgba(0,0,0,0.5);
+    display:flex; justify-content:center; align-items:center;
+    z-index:50;
+  }
+  #levelPopup div {
+    background:white;
+    padding:30px;
+    border-radius:10px;
+    text-align:center;
+  }
+  #levelPopup button {
+    margin:10px;
+    padding:10px 20px;
+    cursor:pointer;
+  }
 
-    /* Side Panel */
-    #sidePanel {
-      position:fixed;
-      top:50px;
-      right:0;
-      width:220px;
-      background:rgba(0,0,0,0.7);
-      color:white;
-      border-radius:8px 0 0 8px;
-      z-index:20;
-    }
-    #panelHeader {
-      cursor:pointer;
-      padding:10px;
-      background:#333;
-      font-weight:bold;
+  #sidePanel {
+    position:fixed;
+    top:50px;
+    right:0;
+    width:220px;
+    background:rgba(0,0,0,0.7);
+    color:white;
+    border-radius:8px 0 0 8px;
+    z-index:20;
+  }
+  #panelHeader {
+    cursor:pointer;
+    padding:10px;
+    background:#333;
+    font-weight:bold;
+  }
+  #panelContent { padding:10px; display:block; }
+  #sidePanel.collapsed #panelContent { display:none; }
+  #sidePanel ul { list-style:none; padding-left:0; }
+  #sidePanel ul li { cursor:pointer; padding:3px 0; }
+  #sidePanel ul li:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+<canvas id="pond"></canvas>
+<button id="muteBtn">Mute</button>
+
+<div id="levelPopup">
+  <div>
+    <h1>LEVEL COMPLETE</h1>
+    <button id="nextLevelBtn">Next Level</button>
+    <button id="closeBtn">X</button>
+  </div>
+</div>
+
+<div id="sidePanel">
+  <div id="panelHeader">Level 1 ▸</div>
+  <div id="panelContent">
+    <p>Percent Clean: <span id="percentComplete">0%</span></p>
+    <p>Unlocked Ponds:</p>
+    <ul id="pondList">
+      <li data-level="1">Level 1</li>
+    </ul>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
