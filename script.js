@@ -2,14 +2,18 @@ const canvas = document.getElementById('pond');
 const ctx = canvas.getContext('2d');
 
 let mute = false;
+let scale = 1;
 let levelPopupShown = false;
 let currentLevel = 1;
 let unlockedLevels = [1];
-let scale = 1; // Zoom scale
+let pondStates = {}; // stores pondGrid & fish for each level
+let firstLoad = true;
 
 const levelPopup = document.getElementById('levelPopup');
 const nextLevelBtn = document.getElementById('nextLevelBtn');
 const closeBtn = document.getElementById('closeBtn');
+const welcomePopup = document.getElementById('welcomePopup');
+const startBtn = document.getElementById('startBtn');
 const panelHeader = document.getElementById('panelHeader');
 const sidePanel = document.getElementById('sidePanel');
 const percentCompleteEl = document.getElementById('percentComplete');
@@ -33,7 +37,7 @@ pondListEl.addEventListener('click', e => {
   }
 });
 
-// Zoom buttons
+// Zoom buttons with smaller increments
 const zoomInBtn = document.createElement('button');
 zoomInBtn.textContent = '+';
 zoomInBtn.style.position = 'absolute';
@@ -56,8 +60,8 @@ zoomOutBtn.style.fontSize = '18px';
 zoomOutBtn.style.cursor = 'pointer';
 document.body.appendChild(zoomOutBtn);
 
-zoomInBtn.addEventListener('click', () => { scale *= 1.2; });
-zoomOutBtn.addEventListener('click', () => { scale /= 1.2; });
+zoomInBtn.addEventListener('click', () => { scale += 0.1; });
+zoomOutBtn.addEventListener('click', () => { scale -= 0.1; if(scale < 0.2) scale = 0.2; });
 
 let pond = { x: 0, y: 0, rx: 150, ry: 100 };
 let ripples = [];
@@ -73,6 +77,7 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+// Pointer event
 canvas.addEventListener('pointerdown', e => {
   const x = (e.clientX - canvas.width / 2) / scale + canvas.width / 2;
   const y = (e.clientY - canvas.height / 2) / scale + canvas.height / 2;
@@ -110,40 +115,45 @@ function clampFish(f) {
   }
 }
 
+function generatePondShape(level) {
+  // More irregular shapes for higher levels
+  let rx = 200 + Math.random() * 200;
+  let ry = 100 + Math.random() * 150;
+  return { rx, ry };
+}
+
 function startLevel(level) {
   currentLevel = level;
+  levelPopupShown = false;
 
-  pond = {
-    x: canvas.width / 2,
-    y: canvas.height / 2,
-    rx: 200 + Math.random() * 200,
-    ry: 100 + Math.random() * 150
-  };
-
+  pond = { x: canvas.width/2, y: canvas.height/2, ...generatePondShape(level) };
   ripples = [];
-  fish = [];
-  pondGrid = [];
 
-  for (let x = -pond.rx; x < pond.rx; x += GRID_STEP) {
-    for (let y = -pond.ry; y < pond.ry; y += GRID_STEP) {
-      if ((x * x) / (pond.rx * pond.rx) + (y * y) / (pond.ry * pond.ry) <= 1) {
-        pondGrid.push({ x: pond.x + x, y: pond.y + y, cleaned: false });
+  if (pondStates[level]) {
+    pondGrid = pondStates[level].pondGrid;
+    fish = pondStates[level].fish;
+  } else {
+    pondGrid = [];
+    fish = [];
+    for (let x = -pond.rx; x < pond.rx; x += GRID_STEP) {
+      for (let y = -pond.ry; y < pond.ry; y += GRID_STEP) {
+        if ((x*x)/(pond.rx*pond.rx) + (y*y)/(pond.ry*pond.ry) <= 1) {
+          pondGrid.push({ x: pond.x + x, y: pond.y + y, cleaned: false });
+        }
       }
     }
+    const numFish = 15;
+    for (let i=0;i<numFish;i++){
+      const angle = Math.random()*2*Math.PI;
+      const rFactor = Math.random();
+      const x = pond.x + Math.cos(angle)*pond.rx*rFactor;
+      const y = pond.y + Math.sin(angle)*pond.ry*rFactor;
+      const vx = (Math.random()-0.5)*1.2;
+      const vy = (Math.random()-0.5)*0.8;
+      fish.push({x,y,vx,vy});
+    }
   }
-
-  const numFish = 15;
-  for (let i = 0; i < numFish; i++) {
-    const angle = Math.random() * 2 * Math.PI;
-    const rFactor = Math.random();
-    const x = pond.x + Math.cos(angle) * pond.rx * rFactor;
-    const y = pond.y + Math.sin(angle) * pond.ry * rFactor;
-    const vx = (Math.random() - 0.5) * 1.2;
-    const vy = (Math.random() - 0.5) * 0.8;
-    fish.push({ x, y, vx, vy });
-  }
-
-  levelPopupShown = false;
+  pondStates[level] = { pondGrid, fish };
 }
 
 function updatePondGrid() {
@@ -158,94 +168,81 @@ function updatePondGrid() {
 }
 
 function checkLevelComplete() {
-  // Require 100% cleaned
   return pondGrid.every(p => p.cleaned);
 }
 
 function animate() {
   ctx.save();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.translate(canvas.width/2, canvas.height/2);
   ctx.scale(scale, scale);
-  ctx.translate(-canvas.width / 2, -canvas.height / 2);
+  ctx.translate(-canvas.width/2, -canvas.height/2);
 
   // Grass background
   ctx.fillStyle = '#228B22';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // Pond base
+  // Pond base - murky color
   ctx.save();
   ctx.beginPath();
-  ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#5a432b';
+  ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#6b4f3a'; // murky brown-green
   ctx.fill();
   ctx.clip();
 
-  // Ripples and blue water
-  ripples.forEach(r => {
+  // Ripples
+  ripples.forEach(r=>{
     ctx.beginPath();
-    ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(102,204,255,0.6)`;
+    ctx.arc(r.x, r.y, r.radius,0,Math.PI*2);
+    ctx.fillStyle='rgba(102,204,255,0.6)';
     ctx.fill();
     if (r.radius < r.maxRadius) r.radius += 1.5;
   });
 
   updatePondGrid();
 
-  // Draw fully cleaned blue water
-  pondGrid.forEach(p => {
-    if (p.cleaned) {
-      ctx.fillStyle = '#66ccff';
-      ctx.fillRect(p.x - GRID_STEP / 2, p.y - GRID_STEP / 2, GRID_STEP, GRID_STEP);
+  // Blue water
+  pondGrid.forEach(p=>{
+    if(p.cleaned){
+      ctx.fillStyle='#66ccff';
+      ctx.fillRect(p.x-GRID_STEP/2, p.y-GRID_STEP/2, GRID_STEP, GRID_STEP);
     }
   });
 
-  // Fish inside cleaned water
-  const cleanedCircles = pondGrid.filter(p => p.cleaned);
-  if (cleanedCircles.length > 0) {
-    fish.forEach(f => {
-      f.x += f.vx;
-      f.y += f.vy;
-      clampFish(f);
-
-      let visible = cleanedCircles.some(c => {
-        const dist = Math.hypot(f.x - c.x, f.y - c.y);
-        return dist <= 10;
-      });
-
-      if (visible) {
-        ctx.save();
-        ctx.translate(f.x, f.y);
-        ctx.rotate(Math.atan2(f.vy, f.vx));
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 8, 4, 0, 0, Math.PI * 2);
-        ctx.fillStyle = 'yellow';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(-8, 0);
-        ctx.lineTo(-12, 3);
-        ctx.lineTo(-12, -3);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-      }
-    });
-  }
+  // Fish
+  const cleanedPoints = pondGrid.filter(p=>p.cleaned);
+  fish.forEach(f=>{
+    f.x+=f.vx; f.y+=f.vy;
+    clampFish(f);
+    let visible = cleanedPoints.some(c=>Math.hypot(f.x-c.x,f.y-c.y)<=10);
+    if(visible){
+      ctx.save();
+      ctx.translate(f.x,f.y);
+      ctx.rotate(Math.atan2(f.vy,f.vx));
+      ctx.beginPath();
+      ctx.ellipse(0,0,8,4,0,0,Math.PI*2);
+      ctx.fillStyle='yellow';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-8,0); ctx.lineTo(-12,3); ctx.lineTo(-12,-3); ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  });
 
   ctx.restore();
 
-  const percent = Math.floor((cleanedCircles.length / pondGrid.length) * 100);
-  percentCompleteEl.textContent = percent + '%';
+  const percent = Math.floor((cleanedPoints.length/pondGrid.length)*100);
+  percentCompleteEl.textContent = percent+'%';
 
-  if (checkLevelComplete() && !levelPopupShown) {
-    levelPopup.style.display = 'flex';
-    levelPopupShown = true;
-
-    if (!unlockedLevels.includes(currentLevel + 1)) {
-      unlockedLevels.push(currentLevel + 1);
-      const li = document.createElement('li');
-      li.dataset.level = currentLevel + 1;
-      li.textContent = `Level ${currentLevel + 1}`;
+  if(checkLevelComplete() && !levelPopupShown){
+    levelPopup.style.display='flex';
+    levelPopupShown=true;
+    if(!unlockedLevels.includes(currentLevel+1)){
+      unlockedLevels.push(currentLevel+1);
+      const li=document.createElement('li');
+      li.dataset.level=currentLevel+1;
+      li.textContent=`Level ${currentLevel+1}`;
       pondListEl.appendChild(li);
     }
   }
@@ -255,12 +252,21 @@ function animate() {
 
 animate();
 
-nextLevelBtn.addEventListener('click', () => {
-  levelPopup.style.display = 'none';
-  startLevel(currentLevel + 1);
+// Level complete popup buttons
+nextLevelBtn.addEventListener('click',()=>{
+  levelPopup.style.display='none';
+  startLevel(currentLevel+1);
 });
-closeBtn.addEventListener('click', () => {
-  levelPopup.style.display = 'none';
-});
+closeBtn.addEventListener('click',()=>{ levelPopup.style.display='none'; });
 
-startLevel(1);
+// Welcome popup
+if(firstLoad){
+  welcomePopup.style.display='flex';
+  startBtn.addEventListener('click',()=>{
+    welcomePopup.style.display='none';
+    startLevel(1);
+    firstLoad=false;
+  });
+}else{
+  startLevel(1);
+}
