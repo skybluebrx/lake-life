@@ -19,7 +19,10 @@ const sidePanel = document.getElementById('sidePanel');
 const percentCompleteEl = document.getElementById('percentComplete');
 const pondListEl = document.getElementById('pondList');
 
-panelHeader.textContent = "MENU ▸"; // Update header
+// Only Level 1 should be visible at start
+pondListEl.innerHTML = '<li data-level="1">Level 1</li>';
+
+panelHeader.textContent = "MENU ▸";
 
 document.getElementById('muteBtn').addEventListener('click', () => {
   mute = !mute;
@@ -60,8 +63,9 @@ zoomOutBtn.style.fontSize = '18px';
 zoomOutBtn.style.cursor = 'pointer';
 document.body.appendChild(zoomOutBtn);
 
-zoomInBtn.addEventListener('click', () => { scale += 0.1; });
-zoomOutBtn.addEventListener('click', () => { scale -= 0.1; if(scale < 0.2) scale = 0.2; });
+// Smaller zoom steps
+zoomInBtn.addEventListener('click', () => { scale += 0.05; if(scale>3) scale=3; });
+zoomOutBtn.addEventListener('click', () => { scale -= 0.05; if(scale<0.3) scale=0.3; });
 
 let pond = { x: 0, y: 0, rx: 150, ry: 100 };
 let ripples = [];
@@ -116,7 +120,6 @@ function clampFish(f) {
 }
 
 function generatePondShape(level) {
-  // More irregular shapes for higher levels
   let rx = 200 + Math.random() * 200;
   let ry = 100 + Math.random() * 150;
   return { rx, ry };
@@ -182,11 +185,11 @@ function animate() {
   ctx.fillStyle = '#228B22';
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // Pond base - murky color
+  // Pond base - murky brown-green
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
-  ctx.fillStyle = '#6b4f3a'; // murky brown-green
+  ctx.fillStyle = '#5e4b3c';
   ctx.fill();
   ctx.clip();
 
@@ -232,10 +235,12 @@ function animate() {
 
   ctx.restore();
 
-  const percent = Math.floor((cleanedPoints.length/pondGrid.length)*100);
-  percentCompleteEl.textContent = percent+'%';
+  // Percent complete display
+  const percent = pondGrid.length ? Math.floor((cleanedPoints.length/pondGrid.length)*100) : 0;
+  percentCompleteEl.textContent = `Level ${currentLevel}: ${percent}%`;
 
-  if(checkLevelComplete() && !levelPopupShown){
+  // Level complete popup
+  if(checkLevelComplete() && !levelPopupShown && !firstLoad){
     levelPopup.style.display='flex';
     levelPopupShown=true;
     if(!unlockedLevels.includes(currentLevel+1)){
@@ -267,6 +272,6 @@ if(firstLoad){
     startLevel(1);
     firstLoad=false;
   });
-}else{
+} else {
   startLevel(1);
 }
