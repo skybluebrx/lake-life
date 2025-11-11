@@ -1,12 +1,14 @@
 const canvas = document.getElementById('pond');
 const ctx = canvas.getContext('2d');
 let mute = false;
+let levelPopupShown = false;
 
 document.getElementById('muteBtn').addEventListener('click', () => {
   mute = !mute;
   document.getElementById('muteBtn').textContent = mute ? 'Unmute' : 'Mute';
 });
 
+// Canvas resize
 function resizeCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -15,14 +17,17 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas);
 
+// Initial pond
 const pond = { x: window.innerWidth/2, y: window.innerHeight/2, rx: 300, ry: 150 };
 
-// Ripples with gradual fill
+// Ripples and cleaned circles
 let ripples = [];
+let cleanedCircles = [];
 
 // Fish
 const fish = [];
-for(let i=0;i<15;i++){
+const numFish = 15;
+for(let i=0;i<numFish;i++){
   const angle = Math.random()*2*Math.PI;
   const rFactor = Math.random();
   const x = pond.x + Math.cos(angle)*pond.rx*rFactor;
@@ -32,8 +37,9 @@ for(let i=0;i<15;i++){
   fish.push({x,y,vx,vy});
 }
 
+// Ripple on click
 canvas.addEventListener('pointerdown', e=>{
-  ripples.push({x:e.clientX, y:e.clientY, radius:0, maxRadius:50, alpha:0.3});
+  ripples.push({x:e.clientX, y:e.clientY, radius:0, maxRadius:60, alpha:0.3});
   if(!mute){
     const audio = new AudioContext();
     const o = audio.createOscillator();
@@ -47,12 +53,14 @@ canvas.addEventListener('pointerdown', e=>{
   }
 });
 
+// Check if point inside pond
 function inPond(x,y){
   const dx = x-pond.x;
   const dy = y-pond.y;
   return (dx*dx)/(pond.rx*pond.rx) + (dy*dy)/(pond.ry*pond.ry) <= 1;
 }
 
+// Clamp fish inside pond
 function clampFish(f){
   const dx = f.x - pond.x;
   const dy = f.y - pond.y;
@@ -66,6 +74,56 @@ function clampFish(f){
   }
 }
 
+// LEVEL COMPLETE popup elements
+const levelPopup = document.getElementById('levelPopup');
+const nextLevelBtn = document.getElementById('nextLevelBtn');
+const closeBtn = document.getElementById('closeBtn');
+
+nextLevelBtn.addEventListener('click', ()=>{
+  levelPopup.style.display = 'none';
+  startNextLevel();
+});
+closeBtn.addEventListener('click', ()=>{
+  levelPopup.style.display = 'none';
+});
+
+// Check if pond fully cleaned (approximate)
+function checkLevelComplete(){
+  // Pond area
+  const pondArea = Math.PI*pond.rx*pond.ry;
+  let cleanedArea = 0;
+  cleanedCircles.forEach(c=>{
+    cleanedArea += Math.PI*c.radius*c.radius;
+  });
+  return cleanedArea >= pondArea;
+}
+
+// Start next level
+function startNextLevel(){
+  // New random pond ellipse
+  pond.rx = 200 + Math.random()*200;
+  pond.ry = 100 + Math.random()*150;
+  pond.x = canvas.width/2;
+  pond.y = canvas.height/2;
+
+  // Reset ripples and cleaned areas
+  ripples = [];
+  cleanedCircles = [];
+
+  // Reset fish positions
+  fish.forEach(f=>{
+    const angle = Math.random()*2*Math.PI;
+    const rFactor = Math.random();
+    f.x = pond.x + Math.cos(angle)*pond.rx*rFactor;
+    f.y = pond.y + Math.sin(angle)*pond.ry*rFactor;
+    f.vx = (Math.random()-0.5)*1.2;
+    f.vy = (Math.random()-0.5)*0.8;
+  });
+
+  levelPopupShown = false;
+}
+
+// Animate loop
 function animate(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -73,7 +131,7 @@ function animate(){
   ctx.fillStyle = '#228B22';
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // Pond brown base
+  // Draw brown pond base
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
@@ -81,16 +139,21 @@ function animate(){
   ctx.fill();
   ctx.clip();
 
-  // Draw ripples as expanding semi-transparent blue
+  // Draw expanding blue ripples
   ripples.forEach(r=>{
     ctx.beginPath();
     ctx.arc(r.x, r.y, r.radius, 0, Math.PI*2);
     ctx.fillStyle = `rgba(102,204,255,${r.alpha})`;
     ctx.fill();
 
-    // Increase size and fade alpha slowly
+    // Gradually expand ripple
     if(r.radius < r.maxRadius) r.radius += 1.5;
     if(r.alpha < 0.6) r.alpha += 0.005;
+
+    // Add to cleanedCircles permanently when ripple maxed
+    if(r.radius >= r.maxRadius && !cleanedCircles.includes(r)){
+      cleanedCircles.push(r);
+    }
   });
 
   // Move and draw fish
@@ -99,21 +162,23 @@ function animate(){
     f.y += f.vy;
     clampFish(f);
 
-    // Fish visible if under any ripple radius
+    // Fish visible only under blue ripples
     let visible = false;
-    ripples.forEach(r=>{
-      const dist = Math.hypot(f.x-r.x, f.y-r.y);
-      if(dist <= r.radius) visible = true;
+    cleanedCircles.forEach(c=>{
+      const dist = Math.hypot(f.x-c.x, f.y-c.y);
+      if(dist <= c.radius) visible = true;
     });
 
     if(visible){
       ctx.save();
       ctx.translate(f.x,f.y);
       ctx.rotate(Math.atan2(f.vy,f.vx));
+      // Fish body
       ctx.beginPath();
       ctx.ellipse(0,0,8,4,0,0,Math.PI*2);
       ctx.fillStyle='yellow';
       ctx.fill();
+      // Fish tail
       ctx.beginPath();
       ctx.moveTo(-8,0);
       ctx.lineTo(-12,3);
@@ -125,6 +190,13 @@ function animate(){
   });
 
   ctx.restore();
+
+  // Show level complete popup if pond fully cleaned
+  if(checkLevelComplete() && !levelPopupShown){
+    levelPopup.style.display = 'flex';
+    levelPopupShown = true;
+  }
+
   requestAnimationFrame(animate);
 }
 
