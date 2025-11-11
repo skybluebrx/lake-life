@@ -19,15 +19,9 @@ window.addEventListener('resize', resizeCanvas);
 // Pond ellipse
 const pond = { x: window.innerWidth/2, y: window.innerHeight/2, rx: 300, ry: 150 };
 
-// Grid for cleaned areas
-const gridSize = 8;
-const cols = Math.ceil(pond.rx*2/gridSize);
-const rows = Math.ceil(pond.ry*2/gridSize);
-const cleanedMask = [];
-for(let i=0;i<cols;i++){
-  cleanedMask[i]=[];
-  for(let j=0;j<rows;j++) cleanedMask[i][j]=0; // 0 = dirty, 1 = fully cleaned
-}
+// Ripples and cleaned area
+let ripples = [];
+let cleanedCircles = [];
 
 // Fish
 const fish = [];
@@ -38,12 +32,10 @@ for(let i=0;i<15;i++){
   const y = pond.y + Math.sin(angle)*pond.ry*rFactor;
   const vx = (Math.random()-0.5)*1.2;
   const vy = (Math.random()-0.5)*0.8;
-  fish.push({x,y,vx,vy,visible:false});
+  fish.push({x,y,vx,vy});
 }
 
-// Ripples
-let ripples = [];
-
+// Add ripple on click
 canvas.addEventListener('pointerdown', e=>{
   ripples.push({x:e.clientX, y:e.clientY, radius:0, alpha:0.8});
 
@@ -60,11 +52,25 @@ canvas.addEventListener('pointerdown', e=>{
   }
 });
 
-// Check if inside pond
+// Check if point is inside pond ellipse
 function inPond(x,y){
   const dx = x-pond.x;
   const dy = y-pond.y;
   return (dx*dx)/(pond.rx*pond.rx) + (dy*dy)/(pond.ry*pond.ry) <= 1;
+}
+
+// Clamp fish inside pond
+function clampFish(f){
+  const dx = f.x - pond.x;
+  const dy = f.y - pond.y;
+  const val = (dx*dx)/(pond.rx*pond.rx) + (dy*dy)/(pond.ry*pond.ry);
+  if(val > 1){
+    const angle = Math.atan2(dy, dx);
+    f.x = pond.x + Math.cos(angle)*pond.rx*0.95;
+    f.y = pond.y + Math.sin(angle)*pond.ry*0.95;
+    f.vx *= -1;
+    f.vy *= -1;
+  }
 }
 
 // Animate
@@ -75,7 +81,7 @@ function animate(){
   ctx.fillStyle = '#228B22';
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // Draw pond base brown
+  // Draw brown pond
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
@@ -83,74 +89,54 @@ function animate(){
   ctx.fill();
   ctx.clip();
 
-  // Draw cleaned areas as solid blue
+  // Draw cleaned blue areas (continuous)
   ctx.fillStyle = '#66ccff';
-  for(let i=0;i<cols;i++){
-    for(let j=0;j<rows;j++){
-      if(cleanedMask[i][j] > 0){
-        const cellX = pond.x - pond.rx + i*gridSize + gridSize/2;
-        const cellY = pond.y - pond.ry + j*gridSize + gridSize/2;
-        ctx.beginPath();
-        ctx.ellipse(cellX, cellY, gridSize/2, gridSize/2, 0, 0, Math.PI*2);
-        ctx.fill();
-      }
-    }
-  }
+  cleanedCircles.forEach(c=>{
+    ctx.beginPath();
+    ctx.arc(c.x,c.y,c.radius,0,Math.PI*2);
+    ctx.fill();
+  });
 
-  // Draw ripples on top
-  for(let k=ripples.length-1;k>=0;k--){
-    const r = ripples[k];
+  // Update ripples
+  for(let i=ripples.length-1;i>=0;i--){
+    const r = ripples[i];
+    // Draw ripple stroke
     ctx.beginPath();
     ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);
     ctx.strokeStyle = `rgba(173,216,230,${r.alpha})`;
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Mark cleaned grid cells under ripple
-    for(let i=0;i<cols;i++){
-      for(let j=0;j<rows;j++){
-        const cellX = pond.x - pond.rx + i*gridSize + gridSize/2;
-        const cellY = pond.y - pond.ry + j*gridSize + gridSize/2;
-        if(inPond(cellX,cellY)){
-          const dist = Math.hypot(cellX-r.x, cellY-r.y);
-          if(dist <= r.radius){
-            cleanedMask[i][j] = 1; // permanently cleaned
-          }
-        }
-      }
-    }
-
-    r.radius += 1.5; // ripple growth
+    // Increase ripple radius
+    r.radius += 2;
     r.alpha -= 0.01;
-    if(r.alpha <= 0) ripples.splice(k,1);
+    if(r.alpha <= 0){
+      ripples.splice(i,1);
+      // Add to cleanedCircles permanently
+      cleanedCircles.push({x:r.x,y:r.y,radius:r.radius});
+    }
   }
 
-  // Move fish
+  // Move and draw fish
   fish.forEach(f=>{
-    // Fish visible only in cleaned area
-    const col = Math.floor((f.x-(pond.x-pond.rx))/gridSize);
-    const row = Math.floor((f.y-(pond.y-pond.ry))/gridSize);
-    if(col>=0 && row>=0 && col<cols && row<rows && cleanedMask[col][row]===1){
-      f.visible = true;
-    } else f.visible=false;
+    f.x += f.vx;
+    f.y += f.vy;
+    clampFish(f);
 
-    if(f.visible){
-      f.x += f.vx;
-      f.y += f.vy;
+    // Fish visible only if inside a cleaned blue area
+    let visible = false;
+    cleanedCircles.forEach(c=>{
+      const dist = Math.hypot(f.x-c.x, f.y-c.y);
+      if(dist <= c.radius) visible = true;
+    });
 
-      if(!inPond(f.x,f.y)){
-        f.vx *= -1;
-        f.vy *= -1;
-      }
-
-      // Draw fish: ellipse body + triangle tail
+    if(visible){
       ctx.save();
       ctx.translate(f.x,f.y);
       ctx.rotate(Math.atan2(f.vy,f.vx));
-      // body
       ctx.beginPath();
       ctx.ellipse(0,0,8,4,0,0,Math.PI*2);
-      ctx.fillStyle = 'yellow';
+      ctx.fillStyle='yellow';
       ctx.fill();
       // tail
       ctx.beginPath();
@@ -158,7 +144,6 @@ function animate(){
       ctx.lineTo(-12,3);
       ctx.lineTo(-12,-3);
       ctx.closePath();
-      ctx.fillStyle='yellow';
       ctx.fill();
       ctx.restore();
     }
