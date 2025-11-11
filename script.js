@@ -81,19 +81,11 @@ function animate(){
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
-  ctx.fillStyle = '#5a432b';
+  ctx.fillStyle = '#5a432b'; // brown water
   ctx.fill();
   ctx.clip();
 
-  // Draw continuous water using alpha blending
-  ctx.beginPath();
-  ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
-  ctx.fillStyle = '#66ccff';
-  ctx.globalAlpha = 1;
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // Overlay cleaned areas (small alpha to reveal blue gradually)
+  // Overlay cleaned areas as gradual blue
   for(let i=0;i<cols;i++){
     for(let j=0;j<rows;j++){
       if(cleanGrid[i][j] > 0){
