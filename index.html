@@ -1,103 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lake Life</title>
 <style>
-  :root {
-    --menu-w: 240px;
-    --menu-collapsed-w: 48px;
-    --ui-z: 999;
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: sans-serif;
+    background-color: #5c8237; /* grass green */
   }
-  html,body { height:100%; margin:0; background:#1f7a2f; font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
-  canvas { display:block; width:100%; height:100%; background:#1f7a2f; }
-  #app-ui { position:fixed; inset:0; pointer-events:none; }
-  /* Sidebar */
-  #sidebar {
-    position:fixed; right:12px; top:12px; width:var(--menu-w); background:rgba(255,255,255,0.92);
-    border-radius:10px; padding:12px; box-shadow:0 6px 20px rgba(0,0,0,0.25); pointer-events:auto; z-index:var(--ui-z);
-    transition:width .22s ease;
+
+  #pondCanvas {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
   }
-  #sidebar.collapsed { width:var(--menu-collapsed-w); padding:8px; overflow:hidden; }
-  #sidebar h2 { margin:0 0 8px 0; font-size:16px; }
-  #sidebar .row { display:flex; justify-content:space-between; align-items:center; font-size:14px; margin:4px 0; }
-  #sidebar #levels { margin-top:8px; max-height:240px; overflow:auto; }
-  #sidebar .level-item { padding:6px 8px; background:#f0f0f0; border-radius:6px; margin-bottom:6px; cursor:pointer; }
-  #sidebar .level-item.locked { opacity:0.5; cursor:default; }
-  #sidebar .toggle { margin-top:8px; color:#1565c0; cursor:pointer; text-decoration:underline; font-size:13px; }
-  /* Popup */
-  .popup {
-    position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:calc(var(--ui-z) + 2);
-    background:white; padding:20px; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); display:none; pointer-events:auto;
+
+  #ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.8);
+    border-radius: 5px;
+    padding: 5px;
+    z-index: 10;
   }
-  .popup h3 { margin:0 0 8px 0; }
-  .popup button { padding:8px 12px; margin:6px; cursor:pointer; }
-  /* Pan/Zoom controls bottom-right */
-  #controls {
-    position:fixed; right:12px; bottom:12px; z-index:var(--ui-z); pointer-events:auto;
-    display:flex; gap:8px; align-items:center;
+
+  #menu {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 200px;
+    max-height: 400px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 5px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    z-index: 10;
   }
-  .pad { display:grid; grid-template-areas:"sp up sp" "lt ct rt" "sp dn sp"; gap:4px; }
-  .pad button { width:40px; height:40px; border-radius:6px; background:rgba(255,255,255,0.95); border:1px solid #ddd; cursor:pointer; }
-  #zoomButtons { display:flex; flex-direction:column; gap:8px; margin-left:8px; }
-  #zoomButtons button { width:36px; height:36px; border-radius:6px; }
-  /* make sure menus and controls clickable while canvas below */
-  #sidebar, .popup, #controls { pointer-events:auto; }
-  /* small responsive tweak */
-  @media (max-width:600px) {
-    #sidebar { right:8px; top:8px; width:200px; }
-    #controls { right:8px; bottom:8px; }
+
+  #menu.collapsed {
+    max-height: 40px;
+    overflow: hidden;
   }
+
+  #menuHeader {
+    padding: 5px;
+    background: #ccc;
+    cursor: pointer;
+    font-weight: bold;
+  }
+
+  #menuContent {
+    padding: 5px;
+  }
+
+  .zoomBtn {
+    display: inline-block;
+    margin: 2px;
+    padding: 5px 8px;
+    cursor: pointer;
+    background: #ccc;
+    border-radius: 3px;
+    user-select: none;
+  }
+
+  #levelPopup {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,255,255,0.95);
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    z-index: 20;
+    display: none;
+  }
+
+  #levelPopup button {
+    margin-top: 10px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+
+  #panControls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panRow {
+    display: flex;
+    justify-content: center;
+  }
+
+  .panBtn {
+    margin: 2px;
+    padding: 5px 8px;
+    background: #ccc;
+    border-radius: 3px;
+    cursor: pointer;
+    user-select: none;
+  }
+
 </style>
 </head>
 <body>
-<canvas id="canvas"></canvas>
+<canvas id="pondCanvas"></canvas>
 
-<div id="app-ui">
-  <div id="sidebar" aria-hidden="false">
-    <h2>MENU</h2>
-    <div class="row"><div>Level</div><div id="levelLabel">1</div></div>
-    <div class="row"><div>Completion</div><div id="percentLabel">0%</div></div>
-    <div id="levels"></div>
-    <div class="toggle" id="toggleSidebar">Collapse</div>
+<div id="ui">
+  <span class="zoomBtn" id="zoomIn">+</span>
+  <span class="zoomBtn" id="zoomOut">-</span>
+</div>
+
+<div id="menu" class="collapsed">
+  <div id="menuHeader">MENU</div>
+  <div id="menuContent">
+    <div id="levelList"></div>
+    <div id="levelProgress">Progress: 0%</div>
   </div>
+</div>
 
-  <div id="controls">
-    <div class="pad" aria-hidden="false" style="grid-auto-flow:row;">
-      <div style="grid-area:up"></div>
-      <button id="panUp" style="grid-area:up">▲</button>
-      <div style="grid-area:sp"></div>
+<div id="levelPopup">
+  <div id="popupText"></div>
+  <button id="popupButton">Start</button>
+</div>
 
-      <button id="panLeft" style="grid-area:lt">◀</button>
-      <div style="grid-area:ct"></div>
-      <button id="panRight" style="grid-area:rt">▶</button>
-
-      <div style="grid-area:sp"></div>
-      <button id="panDown" style="grid-area:dn">▼</button>
-      <div style="grid-area:sp"></div>
-    </div>
-
-    <div id="zoomButtons">
-      <button id="zoomIn">+</button>
-      <button id="zoomOut">−</button>
-    </div>
+<div id="panControls">
+  <div class="panRow">
+    <div class="panBtn" id="panUp">↑</div>
   </div>
-
-  <div class="popup" id="welcomePopup">
-    <h3>WELCOME TO LAKE LIFE</h3>
-    <div>Clean the pond by tossing pebbles. Fish appear in clean water.</div>
-    <div style="margin-top:12px;">
-      <button id="startBtn">Start</button>
-    </div>
-  </div>
-
-  <div class="popup" id="completePopup">
-    <h3 id="completeTitle">LEVEL COMPLETE</h3>
-    <div style="margin-top:12px;">
-      <button id="nextLevelBtn">Next Level</button>
-      <button id="closeComplete">Close</button>
-    </div>
+  <div class="panRow">
+    <div class="panBtn" id="panLeft">←</div>
+    <div class="panBtn" id="panDown">↓</div>
+    <div class="panBtn" id="panRight">→</div>
   </div>
 </div>
 
