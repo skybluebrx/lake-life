@@ -1,103 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lake Life</title>
-  <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      font-family: sans-serif;
-    }
-    canvas {
-      display: block;
-    }
-    #ui {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 20;
-    }
-    #muteBtn {
-      padding: 8px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    #sidePanel {
-      position: absolute;
-      right: 0;
-      top: 0;
-      width: 200px;
-      background: rgba(255,255,255,0.9);
-      padding: 10px;
-      z-index: 25;
-      transition: transform 0.3s;
-    }
-    #sidePanel.collapsed {
-      transform: translateX(190px);
-    }
-    #panelHeader {
-      font-weight: bold;
-      cursor: pointer;
-      margin-bottom: 10px;
-    }
-    #pondList {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    #pondList li {
-      cursor: pointer;
-      padding: 4px;
-      margin-bottom: 2px;
-      background: #eee;
-    }
-    #percentComplete {
-      margin-top: 10px;
-    }
-    .popup {
-      position: fixed;
-      top:0; left:0; right:0; bottom:0;
-      display: none;
-      justify-content: center;
-      align-items: center;
-      background: rgba(0,0,0,0.5);
-      z-index: 50;
-      flex-direction: column;
-    }
-    .popup-content {
-      background: #fff;
-      padding: 20px;
-      text-align: center;
-      border-radius: 8px;
-    }
-    .popup button {
-      margin-top: 10px;
-      padding: 8px 16px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lake Life</title>
+<style>
+  body, html { margin:0; padding:0; overflow:hidden; font-family:sans-serif; }
+  canvas { display:block; }
+  #ui { position:absolute; top:10px; left:10px; z-index:20; }
+  #muteBtn { padding:8px; font-size:16px; cursor:pointer; }
+  #sidePanel { position:absolute; right:0; top:0; width:200px; background:rgba(255,255,255,0.9); padding:10px; z-index:25; transition: transform 0.3s; }
+  #sidePanel.collapsed { transform: translateX(160px); width:40px; }
+  #panelHeader { font-weight:bold; cursor:pointer; margin-bottom:10px; }
+  #pondList { list-style:none; padding:0; margin:0; }
+  #pondList li { cursor:pointer; padding:4px; margin-bottom:2px; background:#eee; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #percentComplete { margin-top:10px; }
+  .popup { position:fixed; top:0; left:0; right:0; bottom:0; display:flex; justify-content:center; align-items:center; background:rgba(0,0,0,0.5); z-index:50; flex-direction:column; display:none; }
+  .popup-content { background:#fff; padding:20px; text-align:center; border-radius:8px; }
+  .popup button { margin-top:10px; padding:8px 16px; font-size:16px; cursor:pointer; }
+  #zoomControls { position:absolute; left:10px; top:50px; z-index:30; display:flex; flex-direction:column; }
+  #zoomControls button { padding:8px; font-size:18px; margin-bottom:5px; cursor:pointer; }
+</style>
 </head>
 <body>
 
-<div id="ui">
-  <button id="muteBtn">Mute</button>
-</div>
+<div id="ui"><button id="muteBtn">Mute</button></div>
 
 <div id="sidePanel">
   <div id="panelHeader">MENU ▸</div>
   <ul id="pondList">
     <li data-level="1">Level 1</li>
   </ul>
-  <div id="percentComplete">0%</div>
+  <div id="percentComplete">Level 1: 0%</div>
+</div>
+
+<div id="zoomControls">
+  <button id="zoomIn">+</button>
+  <button id="zoomOut">−</button>
 </div>
 
 <canvas id="pond"></canvas>
 
-<!-- Welcome popup -->
 <div id="welcomePopup" class="popup">
   <div class="popup-content">
     <h2>WELCOME TO LAKE LIFE</h2>
@@ -105,7 +48,6 @@
   </div>
 </div>
 
-<!-- Level complete popup -->
 <div id="levelPopup" class="popup">
   <div class="popup-content">
     <h2>LEVEL COMPLETE</h2>
