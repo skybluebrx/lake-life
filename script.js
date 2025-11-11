@@ -7,53 +7,53 @@ document.getElementById('muteBtn').addEventListener('click', () => {
   document.getElementById('muteBtn').textContent = mute ? 'Unmute' : 'Mute';
 });
 
-// Canvas and viewport
+// Device pixel ratio
+const dpr = window.devicePixelRatio || 1;
+function resizeCanvas(){
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width = window.innerWidth + "px";
+  canvas.style.height = window.innerHeight + "px";
+  ctx.setTransform(1,0,0,1,0,0); // reset scale
+  ctx.scale(dpr, dpr);
+  pond.x = window.innerWidth/2;
+  pond.y = window.innerHeight/2;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// Canvas viewport
 let scale = 1;
 let offsetX = 0;
 let offsetY = 0;
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-window.addEventListener('resize', ()=>{
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  pond.x = canvas.width/2;
-  pond.y = canvas.height/2;
-});
 
 // Elliptical pond
-const pond = {
-  x: canvas.width/2,
-  y: canvas.height/2,
-  rx: 300,
-  ry: 150
-};
+const pond = { x: window.innerWidth/2, y: window.innerHeight/2, rx: 300, ry: 150 };
 
-// Clean map grid
-const gridSize = 10;
-const cleanGrid = [];
+// Grid for cleaned areas
+const gridSize = 12;
 const cols = Math.ceil(pond.rx*2/gridSize);
 const rows = Math.ceil(pond.ry*2/gridSize);
+const cleanGrid = [];
 for(let i=0;i<cols;i++){
   cleanGrid[i]=[];
-  for(let j=0;j<rows;j++){
-    cleanGrid[i][j]=false;
-  }
+  for(let j=0;j<rows;j++) cleanGrid[i][j]=false;
 }
 
 // Fish positions
 const fish = [];
 for(let i=0;i<15;i++){
   const angle = Math.random()*2*Math.PI;
-  const radiusFactor = Math.random();
-  const x = pond.x + Math.cos(angle)*pond.rx*radiusFactor;
-  const y = pond.y + Math.sin(angle)*pond.ry*radiusFactor;
-  fish.push({x, y, visible:false});
+  const rFactor = Math.random();
+  const x = pond.x + Math.cos(angle)*pond.rx*rFactor;
+  const y = pond.y + Math.sin(angle)*pond.ry*rFactor;
+  fish.push({x,y,visible:false});
 }
 
 // Ripples
 let ripples = [];
 
-// Pointer click
+// Click/tap
 canvas.addEventListener('pointerdown', e=>{
   const x = (e.clientX - offsetX)/scale;
   const y = (e.clientY - offsetY)/scale;
@@ -80,10 +80,10 @@ canvas.addEventListener('wheel', e=>{
   const my = e.clientY;
   offsetX = mx - (mx - offsetX)*zoom;
   offsetY = my - (my - offsetY)*zoom;
-  scale*=zoom;
+  scale *= zoom;
 });
 
-// Check if point inside pond ellipse
+// Check if point inside pond
 function inPond(x,y){
   const dx = x - pond.x;
   const dy = y - pond.y;
@@ -99,7 +99,7 @@ function animate(){
   ctx.fillStyle='#228B22';
   ctx.fillRect(-offsetX/scale,-offsetY/scale,canvas.width/scale,canvas.height/scale);
 
-  // Pond base brown
+  // Pond brown base
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
@@ -107,34 +107,36 @@ function animate(){
   ctx.fill();
   ctx.clip();
 
-  // Draw cleaned areas from grid
+  // Draw cleaned areas as ellipses
   for(let i=0;i<cols;i++){
     for(let j=0;j<rows;j++){
       if(cleanGrid[i][j]){
-        const cellX = pond.x - pond.rx + i*gridSize;
-        const cellY = pond.y - pond.ry + j*gridSize;
-        ctx.fillStyle='#66ccff';
-        ctx.fillRect(cellX, cellY, gridSize, gridSize);
+        const cellX = pond.x - pond.rx + i*gridSize + gridSize/2;
+        const cellY = pond.y - pond.ry + j*gridSize + gridSize/2;
+        ctx.beginPath();
+        ctx.ellipse(cellX, cellY, gridSize/2, gridSize/2, 0, 0, Math.PI*2);
+        ctx.fillStyle = '#66ccff';
+        ctx.fill();
       }
     }
   }
 
-  // Draw ripples and expand cleaning
+  // Draw ripples
   for(let k=0;k<ripples.length;k++){
-    let r = ripples[k];
+    const r = ripples[k];
     ctx.beginPath();
-    ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);
+    ctx.arc(r.x, r.y, r.radius, 0, Math.PI*2);
     ctx.strokeStyle=`rgba(173,216,230,${r.alpha})`;
     ctx.lineWidth=2;
     ctx.stroke();
 
-    // Update cleaned cells
+    // Update cleaned cells touched by ripple
     for(let i=0;i<cols;i++){
       for(let j=0;j<rows;j++){
         const cellX = pond.x - pond.rx + i*gridSize + gridSize/2;
         const cellY = pond.y - pond.ry + j*gridSize + gridSize/2;
-        if(!cleanGrid[i][j] && Math.hypot(cellX-r.x, cellY-r.y)<=r.radius && inPond(cellX,cellY)){
-          cleanGrid[i][j]=true;
+        if(!cleanGrid[i][j] && Math.hypot(cellX-r.x, cellY-r.y) <= r.radius && inPond(cellX,cellY)){
+          cleanGrid[i][j] = true;
         }
       }
     }
@@ -148,12 +150,11 @@ function animate(){
   fish.forEach(f=>{
     const col = Math.floor((f.x - (pond.x - pond.rx))/gridSize);
     const row = Math.floor((f.y - (pond.y - pond.ry))/gridSize);
-    if(col>=0 && row>=0 && col<cols && row<rows){
-      if(cleanGrid[col][row]) f.visible=true;
-    }
+    if(col>=0 && row>=0 && col<cols && row<rows && cleanGrid[col][row]) f.visible=true;
+
     if(f.visible){
       ctx.beginPath();
-      ctx.arc(f.x,f.y,5,0,Math.PI*2);
+      ctx.arc(f.x, f.y, 5, 0, Math.PI*2);
       ctx.fillStyle='orange';
       ctx.fill();
     }
