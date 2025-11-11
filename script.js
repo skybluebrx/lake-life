@@ -19,15 +19,8 @@ window.addEventListener('resize', resizeCanvas);
 // Pond ellipse
 const pond = { x: window.innerWidth/2, y: window.innerHeight/2, rx: 300, ry: 150 };
 
-// Grid for cleaned areas
-const gridSize = 8; // smaller cells
-const cols = Math.ceil(pond.rx*2/gridSize);
-const rows = Math.ceil(pond.ry*2/gridSize);
-const cleanGrid = [];
-for(let i=0;i<cols;i++){
-  cleanGrid[i]=[];
-  for(let j=0;j<rows;j++) cleanGrid[i][j]=0; // 0–1 cleaned percentage
-}
+// Track cleaned areas as array of ripples
+let ripples = [];
 
 // Fish
 const fish = [];
@@ -41,14 +34,9 @@ for(let i=0;i<15;i++){
   fish.push({x,y,vx,vy,visible:false});
 }
 
-// Ripples
-let ripples = [];
-
+// Add ripple on click/tap
 canvas.addEventListener('pointerdown', e=>{
-  const x = e.clientX;
-  const y = e.clientY;
-  ripples.push({x,y,radius:0,alpha:0.8});
-
+  ripples.push({x:e.clientX, y:e.clientY, radius:0, alpha:0.8});
   if(!mute){
     const audio = new AudioContext();
     const o = audio.createOscillator();
@@ -77,63 +65,42 @@ function animate(){
   ctx.fillStyle = '#228B22';
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // Pond base
+  // Draw pond base brown
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
-  ctx.fillStyle = '#5a432b'; // brown water
+  ctx.fillStyle = '#5a432b';
   ctx.fill();
   ctx.clip();
 
-  // Overlay cleaned areas as gradual blue
-  for(let i=0;i<cols;i++){
-    for(let j=0;j<rows;j++){
-      if(cleanGrid[i][j] > 0){
-        const cellX = pond.x - pond.rx + i*gridSize + gridSize/2;
-        const cellY = pond.y - pond.ry + j*gridSize + gridSize/2;
-        ctx.beginPath();
-        ctx.ellipse(cellX, cellY, gridSize/2, gridSize/2, 0, 0, Math.PI*2);
-        ctx.fillStyle = `rgba(102,204,255,${cleanGrid[i][j]})`;
-        ctx.fill();
-      }
-    }
-  }
-
-  // Ripples
-  for(let k=0;k<ripples.length;k++){
-    const r = ripples[k];
+  // Draw blue water as continuous overlay
+  ctx.fillStyle = '#66ccff';
+  ripples.forEach(r=>{
+    const gradient = ctx.createRadialGradient(r.x,r.y,0,r.x,r.y,r.radius);
+    gradient.addColorStop(0,'rgba(102,204,255,0.8)');
+    gradient.addColorStop(1,'rgba(102,204,255,0)');
+    ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);
-    ctx.strokeStyle = `rgba(173,216,230,${r.alpha})`;
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    ctx.ellipse(pond.x, pond.y, pond.rx, pond.ry, 0, 0, Math.PI*2);
+    ctx.fill();
+  });
 
-    // Update cleaned cells
-    for(let i=0;i<cols;i++){
-      for(let j=0;j<rows;j++){
-        const cellX = pond.x - pond.rx + i*gridSize + gridSize/2;
-        const cellY = pond.y - pond.ry + j*gridSize + gridSize/2;
-        if(inPond(cellX,cellY)){
-          const dist = Math.hypot(cellX-r.x, cellY-r.y);
-          if(dist <= r.radius){
-            cleanGrid[i][j] = Math.min(cleanGrid[i][j]+0.05,1); // gradual cleaning
-          }
-        }
-      }
-    }
-
-    r.radius += 1.5; // smaller ripple
-    r.alpha -= 0.01;
-    if(r.alpha<=0) ripples.splice(k,1);
+  // Update ripple radii
+  for(let i=ripples.length-1;i>=0;i--){
+    ripples[i].radius += 2; // smaller incremental growth
+    ripples[i].alpha -= 0.01;
+    if(ripples[i].alpha <= 0) ripples.splice(i,1);
   }
 
   // Move fish
   fish.forEach(f=>{
-    const col = Math.floor((f.x-(pond.x-pond.rx))/gridSize);
-    const row = Math.floor((f.y-(pond.y-pond.ry))/gridSize);
-    if(col>=0 && row>=0 && col<cols && row<rows && cleanGrid[col][row]>0.5){
-      f.visible = true;
-    }
+    // Check if fish is under cleaned water
+    let underClean = false;
+    ripples.forEach(r=>{
+      const dist = Math.hypot(f.x - r.x, f.y - r.y);
+      if(dist <= r.radius) underClean = true;
+    });
+    f.visible = underClean;
 
     if(f.visible){
       f.x += f.vx;
