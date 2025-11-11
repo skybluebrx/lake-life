@@ -7,8 +7,10 @@ let levelPopupShown = false;
 let firstLoad = true;
 let currentLevel = 1;
 const unlockedLevels = [1];
+const pondStates = {};
+let pond = {}, ripples=[], fish=[];
 
-// Pond shapes (level -> points for irregular pond)
+// Pond shapes per level (set, irregular shapes)
 const pondShapes = {
   1: [{x:0,y:-100},{x:150,y:0},{x:0,y:100},{x:-150,y:0}],
   2: [{x:-50,y:-120},{x:140,y:-60},{x:100,y:80},{x:-140,y:60}],
@@ -16,9 +18,7 @@ const pondShapes = {
   4: [{x:-90,y:-160},{x:170,y:-80},{x:150,y:130},{x:-170,y:120}]
 };
 
-const pondStates = {};
-let pond = {}, ripples=[], fish=[];
-
+// UI Elements
 const levelPopup = document.getElementById('levelPopup');
 const nextLevelBtn = document.getElementById('nextLevelBtn');
 const closeBtn = document.getElementById('closeBtn');
@@ -29,25 +29,30 @@ const panelHeader = document.getElementById('panelHeader');
 const pondListEl = document.getElementById('pondList');
 const percentCompleteEl = document.getElementById('percentComplete');
 
+// Panel toggle
 panelHeader.addEventListener('click', ()=>sidePanel.classList.toggle('collapsed'));
+
+// Mute button
 document.getElementById('muteBtn').addEventListener('click',()=>{
   mute=!mute;
   document.getElementById('muteBtn').textContent = mute?'Unmute':'Mute';
 });
 
-// Zoom buttons with small increments
+// Zoom buttons (small increments)
 document.getElementById('zoomIn').addEventListener('click', ()=>{ scale += 0.02; if(scale>3) scale=3; });
 document.getElementById('zoomOut').addEventListener('click', ()=>{ scale -= 0.02; if(scale<0.5) scale=0.5; });
 
+// Canvas resize
 function resizeCanvas(){
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  if(pond.x) pond.x = canvas.width/2;
-  if(pond.y) pond.y = canvas.height/2;
+  pond.x = canvas.width/2;
+  pond.y = canvas.height/2;
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+// Pond interaction
 canvas.addEventListener('pointerdown', e=>{
   const x = (e.clientX - canvas.width/2)/scale + canvas.width/2;
   const y = (e.clientY - canvas.height/2)/scale + canvas.height/2;
@@ -65,28 +70,26 @@ canvas.addEventListener('pointerdown', e=>{
   }
 });
 
+// Check if point is in pond
 function inPond(x,y){
-  let inside=false;
-  ctx.beginPath();
-  const pts = pond.points || [];
-  if(pts.length>0){
-    ctx.moveTo(pond.x+pts[0].x, pond.y+pts[0].y);
-    for(let i=1;i<pts.length;i++) ctx.lineTo(pond.x+pts[i].x, pond.y+pts[i].y);
-    ctx.closePath();
-    inside=ctx.isPointInPath(x,y);
-  }
-  return inside;
-}
-
-function clampFish(f){
-  if(!pond.points) return;
-  let inside=false;
+  if(!pond.points) return false;
   ctx.beginPath();
   const pts = pond.points;
   ctx.moveTo(pond.x+pts[0].x, pond.y+pts[0].y);
   for(let i=1;i<pts.length;i++) ctx.lineTo(pond.x+pts[i].x, pond.y+pts[i].y);
   ctx.closePath();
-  if(!ctx.isPointInPath(f.x,f.y)) {
+  return ctx.isPointInPath(x,y);
+}
+
+// Fish stay in pond
+function clampFish(f){
+  if(!pond.points) return;
+  ctx.beginPath();
+  const pts = pond.points;
+  ctx.moveTo(pond.x+pts[0].x, pond.y+pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pond.x+pts[i].x, pond.y+pts[i].y);
+  ctx.closePath();
+  if(!ctx.isPointInPath(f.x,f.y)){
     f.vx*=-1; f.vy*=-1;
     f.x+=f.vx; f.y+=f.vy;
   }
@@ -115,7 +118,7 @@ function startLevel(level){
   }
 }
 
-// Draw grass with trees
+// Draw grass and trees
 function drawGrass(){
   ctx.fillStyle='#228B22';
   ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -133,31 +136,30 @@ function drawGrass(){
   }
 }
 
-// Draw pond
+// Draw pond, ripples, blue water, fish
 function drawPond(){
+  if(!pond.points) return;
+
+  // Murky pond
   ctx.beginPath();
   const pts = pond.points;
-  if(!pts) return;
   ctx.moveTo(pond.x+pts[0].x, pond.y+pts[0].y);
   for(let i=1;i<pts.length;i++) ctx.lineTo(pond.x+pts[i].x, pond.y+pts[i].y);
   ctx.closePath();
-  ctx.fillStyle='#2e4d26'; // murky water
+  ctx.fillStyle='#355e2f'; // murky green
   ctx.fill();
-  ctx.clip();
 
-  // Ripples -> blue fill
+  // Ripples
   ripples.forEach(r=>{
     ctx.beginPath();
     ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);
-    ctx.fillStyle='rgba(102,204,255,0.4)';
+    ctx.fillStyle='rgba(102,204,255,0.3)';
     ctx.fill();
     if(r.radius<r.maxRadius) r.radius+=1.5;
-
-    // Mark cleaned points
     pond.cleanedPoints.push({x:r.x,y:r.y,radius:r.radius});
   });
 
-  // Draw solid blue water where cleaned
+  // Solid blue water where cleaned
   pond.cleanedPoints.forEach(c=>{
     ctx.beginPath();
     ctx.arc(c.x,c.y,c.radius,0,Math.PI*2);
@@ -182,10 +184,8 @@ function drawPond(){
   });
 }
 
-// Check completion
+// Level complete check
 function checkLevelComplete(){
-  if(!pond.points || !pond.cleanedPoints) return false;
-  // Simple: if cleanedPoints cover >95% of bounding box
   return pond.cleanedPoints.length>200;
 }
 
@@ -202,7 +202,6 @@ function animate(){
 
   ctx.restore();
 
-  // Percent complete
   percentCompleteEl.textContent=`Level ${currentLevel}: ${Math.min(100,Math.floor((pond.cleanedPoints.length/250)*100))}%`;
 
   if(checkLevelComplete() && !levelPopupShown && !firstLoad){
