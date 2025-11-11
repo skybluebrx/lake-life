@@ -2,10 +2,9 @@ const canvas = document.getElementById('pond');
 const ctx = canvas.getContext('2d');
 let mute = false;
 
-const muteBtn = document.getElementById('muteBtn');
-muteBtn.addEventListener('click', () => {
+document.getElementById('muteBtn').addEventListener('click', () => {
   mute = !mute;
-  muteBtn.textContent = mute ? 'Unmute' : 'Mute';
+  document.getElementById('muteBtn').textContent = mute ? 'Unmute' : 'Mute';
 });
 
 let ripples = [];
@@ -13,18 +12,40 @@ let scale = 1;
 let offsetX = 0;
 let offsetY = 0;
 
-const pondWidth = 2000;  // Virtual pond size
-const pondHeight = 1000;
-let lakeData = [];        // stores cleaned percentage for each pixel block
+// Virtual pond dimensions
+const pondWidth = 1500;
+const pondHeight = 800;
+const pondX = pondWidth/2;
+const pondY = pondHeight/2;
+const pondRadiusX = 600;
+const pondRadiusY = 300;
 
-// Initialize lake data
-for (let x = 0; x < pondWidth; x++) {
-  lakeData[x] = [];
-  for (let y = 0; y < pondHeight; y++) {
-    lakeData[x][y] = 0; // 0 = dirty, 1 = cleaned
+// Clean layer (fish/plants)
+let cleanLayer = ctx.createImageData(pondWidth, pondHeight);
+for (let i=0;i<cleanLayer.data.length;i+=4){
+  cleanLayer.data[i]=102;   // R
+  cleanLayer.data[i+1]=204; // G
+  cleanLayer.data[i+2]=255; // B
+  cleanLayer.data[i+3]=255; // A
+}
+
+// Dirty layer initialization
+let dirtyLayer = ctx.createImageData(pondWidth, pondHeight);
+for (let y=0;y<pondHeight;y++){
+  for (let x=0;x<pondWidth;x++){
+    const dx = x - pondX;
+    const dy = y - pondY;
+    if (dx*dx/pondRadiusX/pondRadiusX + dy*dy/pondRadiusY/pondRadiusY <= 1){
+      const idx = (y*pondWidth + x)*4;
+      dirtyLayer.data[idx]=50 + Math.random()*30;    // R
+      dirtyLayer.data[idx+1]=30 + Math.random()*30;  // G
+      dirtyLayer.data[idx+2]=20 + Math.random()*20;  // B
+      dirtyLayer.data[idx+3]=255;                     // A
+    }
   }
 }
 
+// Resize
 function resize() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -32,89 +53,88 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// Click/tap
-canvas.addEventListener('pointerdown', (e) => {
-  const x = (e.clientX - offsetX) / scale;
-  const y = (e.clientY - offsetY) / scale;
-  ripples.push({ x, y, radius: 0, alpha: 1 });
-  if (!mute) {
+// Click/tap: add ripple
+canvas.addEventListener('pointerdown', (e)=>{
+  const x = (e.clientX - offsetX)/scale;
+  const y = (e.clientY - offsetY)/scale;
+  ripples.push({x,y,radius:0,alpha:1});
+  if (!mute){
     const audio = new AudioContext();
     const o = audio.createOscillator();
     const g = audio.createGain();
     o.connect(g);
     g.connect(audio.destination);
-    o.type = 'sine';
-    o.frequency.value = 220;
+    o.type='sine';
+    o.frequency.value=220;
     o.start();
-    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.5);
-    o.stop(audio.currentTime + 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime+0.5);
+    o.stop(audio.currentTime+0.5);
   }
 });
 
-// Zooming
-canvas.addEventListener('wheel', (e) => {
+// Zoom
+canvas.addEventListener('wheel',(e)=>{
   e.preventDefault();
-  const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+  const zoom = e.deltaY<0?1.1:0.9;
   const mx = e.clientX;
   const my = e.clientY;
-  offsetX = mx - (mx - offsetX) * zoom;
-  offsetY = my - (my - offsetY) * zoom;
-  scale *= zoom;
+  offsetX = mx - (mx - offsetX)*zoom;
+  offsetY = my - (my - offsetY)*zoom;
+  scale*=zoom;
 });
 
-// Draw pond
-function drawPond() {
-  for (let x = 0; x < pondWidth; x+=4) {
-    for (let y = 0; y < pondHeight; y+=4) {
-      const val = lakeData[x][y];
-      if (val < 1) {
-        ctx.fillStyle = `rgba(${50 + val*100}, ${30 + val*100}, ${20 + val*50},1)`; // murky → cleaner
-      } else {
-        ctx.fillStyle = `#66ccff`; // clean water
-      }
-      ctx.fillRect(x, y, 4, 4);
-    }
-  }
-}
+// Draw pond shape
+function drawPond(){
+  const image = ctx.createImageData(pondWidth,pondHeight);
+  image.data.set(dirtyLayer.data);
 
-// Animate
-function animate() {
-  ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
-
-  // Clear canvas
-  ctx.clearRect(-offsetX/scale, -offsetY/scale, canvas.width/scale, canvas.height/scale);
-
-  // Update ripples
-  for (let i = 0; i < ripples.length; i++) {
+  // apply ripples to clean layer
+  for(let i=0;i<ripples.length;i++){
     const r = ripples[i];
-    r.radius += 5;
-    r.alpha -= 0.01;
-
-    // Clean lake within ripple
-    for (let x = Math.max(0, r.x - r.radius); x < Math.min(pondWidth, r.x + r.radius); x+=4) {
-      for (let y = Math.max(0, r.y - r.radius); y < Math.min(pondHeight, r.y + r.radius); y+=4) {
+    for(let y=0;y<pondHeight;y++){
+      for(let x=0;x<pondWidth;x++){
         const dx = x - r.x;
         const dy = y - r.y;
-        if (Math.sqrt(dx*dx + dy*dy) <= r.radius) {
-          lakeData[x][y] = Math.min(1, lakeData[x][y]+0.05); // increment cleaning
+        if(dx*dx + dy*dy <= r.radius*r.radius){
+          const idx = (y*pondWidth + x)*4;
+          image.data[idx]=cleanLayer.data[idx];
+          image.data[idx+1]=cleanLayer.data[idx+1];
+          image.data[idx+2]=cleanLayer.data[idx+2];
+          image.data[idx+3]=255;
         }
       }
     }
-
-    // Draw ripple
-    ctx.beginPath();
-    ctx.arc(r.x, r.y, r.radius, 0, Math.PI*2);
-    ctx.strokeStyle = `rgba(173,216,230,${r.alpha})`;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    if (r.alpha <= 0) {
-      ripples.splice(i,1);
-      i--;
-    }
   }
+  ctx.putImageData(image,0,0);
+}
+
+// Draw visible ripples
+function drawRipples(){
+  ctx.save();
+  ctx.strokeStyle='rgba(173,216,230,0.5)';
+  ctx.lineWidth=2;
+  ripples.forEach((r,i)=>{
+    ctx.beginPath();
+    ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);
+    ctx.stroke();
+    r.radius+=5;
+    r.alpha-=0.01;
+    if(r.alpha<=0) ripples.splice(i,1);
+  });
+  ctx.restore();
+}
+
+// Animate
+function animate(){
+  ctx.setTransform(scale,0,0,scale,offsetX,offsetY);
+  ctx.clearRect(-offsetX/scale,-offsetY/scale,canvas.width/scale,canvas.height/scale);
+
+  // Draw land
+  ctx.fillStyle='#333';
+  ctx.fillRect(-offsetX/scale,-offsetY/scale,canvas.width/scale,canvas.height/scale);
 
   drawPond();
+  drawRipples();
 
   requestAnimationFrame(animate);
 }
